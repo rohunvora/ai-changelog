@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { UpdateCard } from "./UpdateCard";
 import { SearchBar } from "./SearchBar";
 import { ProviderBadge } from "./ProviderBadge";
 import { ProviderKey, PROVIDERS } from "@/lib/scrapers/types";
+import { UserPreferencesPanel, useUserPreferences, type UserPreferences, DEFAULT_PREFERENCES } from "./UserPreferences";
 import Link from "next/link";
 
 // API-transformed update type
@@ -57,6 +58,27 @@ export function ChangelogFeed() {
   const [selectedProvider, setSelectedProvider] = useState<ProviderKey | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCapability, setSelectedCapability] = useState<string | null>(null);
+  const [showPreferences, setShowPreferences] = useState(false);
+  const [userPreferences, setUserPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
+  
+  // Load user preferences
+  useEffect(() => {
+    const saved = localStorage.getItem("userPreferences");
+    if (saved) {
+      try {
+        setUserPreferences(JSON.parse(saved));
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
+  // Check if user has set any preferences
+  const hasPreferences = useMemo(() => {
+    return userPreferences.skills.length > 0 || 
+           userPreferences.preferredCapabilities.length > 0 ||
+           userPreferences.preferredVerticals.length > 0;
+  }, [userPreferences]);
 
   const fetchUpdates = useCallback(async (reset = false) => {
     const currentOffset = reset ? 0 : offset;
@@ -136,6 +158,17 @@ export function ChangelogFeed() {
                 What can you build today that you couldn't yesterday?
               </p>
             </div>
+            <button
+              onClick={() => setShowPreferences(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                hasPreferences 
+                  ? "bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/30"
+                  : "text-[var(--foreground-secondary)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              <span className="text-base">🎯</span>
+              {hasPreferences ? "Personalized" : "Personalize"}
+            </button>
             <Link
               href="/leaderboard"
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
@@ -225,35 +258,33 @@ export function ChangelogFeed() {
               </div>
             </div>
             
-            {/* Capability filter chips */}
-            {viewMode === "opportunities" && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-[var(--foreground-tertiary)]">Capability:</span>
+            {/* Capability filter chips - always visible */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-[var(--foreground-tertiary)] font-medium">Capability:</span>
+              <button
+                onClick={() => setSelectedCapability(null)}
+                className={`px-3 py-1.5 text-xs rounded-full transition-all ${
+                  !selectedCapability
+                    ? "bg-[var(--accent)] text-white shadow-sm"
+                    : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] hover:bg-[var(--border)] border border-transparent hover:border-[var(--accent)]"
+                }`}
+              >
+                All
+              </button>
+              {CAPABILITY_FILTERS.map((cap) => (
                 <button
-                  onClick={() => setSelectedCapability(null)}
-                  className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                    !selectedCapability
-                      ? "bg-[var(--accent)] text-white"
-                      : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] hover:bg-[var(--border)]"
+                  key={cap.key}
+                  onClick={() => setSelectedCapability(cap.key)}
+                  className={`px-3 py-1.5 text-xs rounded-full transition-all ${
+                    selectedCapability === cap.key
+                      ? "bg-[var(--accent)] text-white shadow-sm"
+                      : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] hover:bg-[var(--border)] border border-transparent hover:border-[var(--accent)]"
                   }`}
                 >
-                  All
+                  {cap.label}
                 </button>
-                {CAPABILITY_FILTERS.map((cap) => (
-                  <button
-                    key={cap.key}
-                    onClick={() => setSelectedCapability(cap.key)}
-                    className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                      selectedCapability === cap.key
-                        ? "bg-[var(--accent)] text-white"
-                        : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] hover:bg-[var(--border)]"
-                    }`}
-                  >
-                    {cap.label}
-                  </button>
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -375,7 +406,91 @@ export function ChangelogFeed() {
               )}
             </>
           )}
+
+          {/* Quick Insights Panel */}
+          {!loading && updates.length > 0 && (
+            <div className="mt-8 p-5 rounded-xl bg-[var(--background-secondary)] border border-[var(--border)]">
+              <h3 className="text-sm font-semibold text-[var(--foreground)] mb-4 flex items-center gap-2">
+                📊 Quick Insights
+              </h3>
+              <div className="grid md:grid-cols-3 gap-4">
+                {/* Capability breakdown */}
+                <div>
+                  <h4 className="text-xs text-[var(--foreground-tertiary)] mb-2">Trending Capabilities</h4>
+                  <div className="space-y-1">
+                    {CAPABILITY_FILTERS.map(cap => {
+                      const count = updates.filter(u => {
+                        const text = `${u.title} ${u.content}`.toLowerCase();
+                        return cap.keywords.some(kw => text.includes(kw));
+                      }).length;
+                      if (count === 0) return null;
+                      return (
+                        <button
+                          key={cap.key}
+                          onClick={() => setSelectedCapability(cap.key)}
+                          className="w-full flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-[var(--background-tertiary)] transition-colors"
+                        >
+                          <span className="text-[var(--foreground-secondary)]">{cap.label}</span>
+                          <span className="text-xs font-mono text-[var(--accent)]">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Provider breakdown */}
+                <div>
+                  <h4 className="text-xs text-[var(--foreground-tertiary)] mb-2">By Provider</h4>
+                  <div className="space-y-1">
+                    {Object.keys(PROVIDERS).map(provider => {
+                      const count = updates.filter(u => u.provider === provider).length;
+                      if (count === 0) return null;
+                      return (
+                        <button
+                          key={provider}
+                          onClick={() => setSelectedProvider(provider as ProviderKey)}
+                          className="w-full flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-[var(--background-tertiary)] transition-colors"
+                        >
+                          <span className="text-[var(--foreground-secondary)]">{PROVIDERS[provider as ProviderKey].name}</span>
+                          <span className="text-xs font-mono text-[var(--accent)]">{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Personalization CTA */}
+                <div className="flex flex-col justify-between">
+                  <div>
+                    <h4 className="text-xs text-[var(--foreground-tertiary)] mb-2">Your Edge</h4>
+                    {hasPreferences ? (
+                      <p className="text-sm text-[var(--foreground-secondary)]">
+                        Filtering for: {userPreferences.preferredCapabilities.length} capabilities, {userPreferences.preferredVerticals.length} verticals
+                      </p>
+                    ) : (
+                      <p className="text-sm text-[var(--foreground-secondary)]">
+                        Set your skills and interests to see personalized opportunities
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setShowPreferences(true)}
+                    className="mt-3 w-full px-4 py-2 text-sm font-medium rounded-lg bg-[var(--accent)] text-white hover:bg-[var(--accent-secondary)] transition-colors"
+                  >
+                    {hasPreferences ? "Edit Preferences" : "🎯 Personalize Results"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
       </main>
+
+      {/* Preferences Panel */}
+      <UserPreferencesPanel
+        isOpen={showPreferences}
+        onClose={() => setShowPreferences(false)}
+        onPreferencesChange={setUserPreferences}
+      />
     </div>
   );
 }

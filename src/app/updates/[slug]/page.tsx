@@ -72,17 +72,27 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
   
   return (
     <div 
-      className="relative"
+      className="relative inline-block"
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
+      onFocus={() => setShow(true)}
+      onBlur={() => setShow(false)}
+      tabIndex={0}
+      role="button"
+      aria-describedby="tooltip"
     >
       {children}
-      {show && (
-        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-xs bg-[var(--background-tertiary)] border border-[var(--border)] rounded-lg shadow-lg whitespace-normal w-48 text-center">
-          {text}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[var(--background-tertiary)]" />
-        </div>
-      )}
+      <div 
+        id="tooltip"
+        role="tooltip"
+        className={`absolute z-[100] bottom-full left-1/2 -translate-x-1/2 mb-3 px-4 py-3 text-sm leading-relaxed bg-[#1a1a2e] border border-[var(--border)] rounded-xl shadow-2xl w-64 text-left pointer-events-none transition-all duration-200 ${
+          show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 invisible"
+        }`}
+      >
+        <div className="font-medium text-[var(--foreground)] mb-1">ℹ️ What this means:</div>
+        <div className="text-[var(--foreground-secondary)]">{text}</div>
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-[#1a1a2e]" />
+      </div>
     </div>
   );
 }
