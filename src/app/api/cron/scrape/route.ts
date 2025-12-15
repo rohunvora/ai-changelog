@@ -4,6 +4,7 @@ import { scrapeAll, NormalizedUpdate, PROVIDERS } from "@/lib/scrapers";
 import { eq, and } from "drizzle-orm";
 import { ulid } from "ulid";
 import { computeHash, htmlToMarkdown } from "@/lib/scrape/utils";
+import { classifyUpdate } from "@/lib/classifier";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // Allow up to 60 seconds for cron
@@ -137,6 +138,13 @@ async function processUpdates(updates: NormalizedUpdate[]): Promise<{
           skipped++;
         }
       } else {
+        // Classify new update
+        const classification = await classifyUpdate(
+          update.provider,
+          update.title,
+          update.contentText
+        );
+        
         await db.insert(schema.updates).values({
           id: ulid(),
           provider: update.provider,
@@ -147,6 +155,11 @@ async function processUpdates(updates: NormalizedUpdate[]): Promise<{
           contentMd: contentMd,
           raw: update.contentHtml,
           hash: hash,
+          unlockType: classification.unlockType,
+          capability: classification.capability || null,
+          enablesBuilding: classification.enablesBuilding 
+            ? JSON.stringify(classification.enablesBuilding)
+            : null,
           publishedAt: new Date(update.publishedAt),
           scrapedAt: new Date(now),
           externalId: update.externalId,

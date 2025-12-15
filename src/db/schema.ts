@@ -6,6 +6,14 @@ export const providers = [
 ] as const;
 export type Provider = typeof providers[number];
 
+// Unlock type classification
+export const unlockTypes = [
+  "new_capability",  // Unlocks something that wasn't possible before
+  "improvement",     // Better/faster/cheaper at existing capabilities
+  "operational",     // Pricing, deprecations, SDK updates
+] as const;
+export type UnlockType = typeof unlockTypes[number];
+
 export const updates = sqliteTable("updates", {
   id: text("id").primaryKey(), // ULID
   provider: text("provider").notNull(), // openai, anthropic, google, xai, perplexity, cohere
@@ -17,6 +25,11 @@ export const updates = sqliteTable("updates", {
   contentText: text("content_text").notNull(), // For search (stripped text)
   contentMd: text("content_md").notNull(), // For rendering (markdown)
   raw: text("raw").notNull().default(""), // Original HTML/JSON for re-processing
+  
+  // Capability unlock classification
+  unlockType: text("unlock_type").default("improvement"), // new_capability, improvement, operational
+  capability: text("capability"), // What new capability this unlocks (for new_capability)
+  enablesBuilding: text("enables_building"), // JSON array of app categories this enables
   
   // Change detection
   hash: text("hash").notNull(), // SHA256 of meaningful fields
@@ -31,6 +44,7 @@ export const updates = sqliteTable("updates", {
   providerUrlUnique: uniqueIndex("updates_provider_url_idx").on(t.provider, t.url),
   publishedIdx: index("updates_published_idx").on(t.publishedAt),
   providerIdx: index("updates_provider_idx").on(t.provider),
+  unlockTypeIdx: index("updates_unlock_type_idx").on(t.unlockType),
 }));
 
 export const ideas = sqliteTable("ideas", {
