@@ -11,6 +11,15 @@ interface SavedItem {
   itemId: string;
   title?: string;
   updateId?: string;
+  updateTitle?: string;
+  description?: string;
+  targetUser?: string;
+  pricingAnchor?: string;
+  scores?: {
+    indie: number;
+    speed: number;
+    opportunity: number;
+  };
   notes: string;
   addedAt: string;
   collectionId?: string;
@@ -413,13 +422,18 @@ export default function SavedPage() {
                           >
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
+                                <div className="flex items-center gap-2 mb-2">
                                   <span className="text-xs px-2 py-0.5 rounded bg-[var(--background-tertiary)] text-[var(--foreground-tertiary)]">
                                     {item.type}
                                   </span>
                                   <span className="text-xs text-[var(--foreground-tertiary)]">
                                     {formatDistanceToNow(new Date(item.addedAt), { addSuffix: true })}
                                   </span>
+                                  {item.pricingAnchor && (
+                                    <span className="text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-400 font-medium">
+                                      {item.pricingAnchor}
+                                    </span>
+                                  )}
                                 </div>
                                 
                                 <Link
@@ -428,16 +442,64 @@ export default function SavedPage() {
                                       ? `/updates/${item.itemId}`
                                       : item.type === "product"
                                       ? `/leaderboard?search=${encodeURIComponent(item.title || item.itemId)}`
-                                      : `/updates/${item.updateId}`
+                                      : `/updates/${item.updateId || item.itemId}`
                                   }
-                                  className="font-semibold text-[var(--foreground)] hover:text-[var(--accent)] transition-colors"
+                                  className="font-semibold text-lg text-[var(--foreground)] hover:text-[var(--accent)] transition-colors"
                                 >
                                   {item.title || item.itemId}
                                 </Link>
                                 
+                                {/* Description for opportunities */}
+                                {item.description && (
+                                  <p className="mt-1 text-sm text-[var(--foreground-secondary)]">
+                                    {item.description}
+                                  </p>
+                                )}
+                                
+                                {/* Target user */}
+                                {item.targetUser && (
+                                  <p className="mt-1 text-xs text-[var(--foreground-tertiary)]">
+                                    <span className="font-medium">Target:</span> {item.targetUser}
+                                  </p>
+                                )}
+                                
+                                {/* Parent update link */}
+                                {item.updateTitle && item.type === "opportunity" && (
+                                  <Link 
+                                    href={`/updates/${item.updateId}`}
+                                    className="mt-2 inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
+                                  >
+                                    ← From: {item.updateTitle}
+                                  </Link>
+                                )}
+                                
+                                {/* Scores for opportunities */}
+                                {item.scores && (
+                                  <div className="mt-3 flex items-center gap-4">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs text-[var(--foreground-tertiary)]">Indie:</span>
+                                      <span className={`text-sm font-bold ${item.scores.indie >= 4 ? "text-green-400" : item.scores.indie >= 3 ? "text-yellow-400" : "text-red-400"}`}>
+                                        {item.scores.indie}/5
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs text-[var(--foreground-tertiary)]">Speed:</span>
+                                      <span className={`text-sm font-bold ${item.scores.speed >= 4 ? "text-green-400" : item.scores.speed >= 3 ? "text-yellow-400" : "text-red-400"}`}>
+                                        {item.scores.speed}/5
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs text-[var(--foreground-tertiary)]">Opp:</span>
+                                      <span className={`text-sm font-bold ${item.scores.opportunity >= 4 ? "text-green-400" : item.scores.opportunity >= 3 ? "text-yellow-400" : "text-red-400"}`}>
+                                        {item.scores.opportunity}/5
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                                
                                 {/* Notes */}
                                 {editingNotes === item.id ? (
-                                  <div className="mt-2 flex gap-2">
+                                  <div className="mt-3 flex gap-2">
                                     <input
                                       type="text"
                                       defaultValue={item.notes}
@@ -461,14 +523,15 @@ export default function SavedPage() {
                                 ) : (
                                   <p 
                                     onClick={() => setEditingNotes(item.id)}
-                                    className="mt-2 text-sm text-[var(--foreground-secondary)] cursor-pointer hover:text-[var(--foreground)]"
+                                    className="mt-3 text-sm text-[var(--foreground-secondary)] cursor-pointer hover:text-[var(--foreground)] border-t border-[var(--border)] pt-3"
                                   >
-                                    {item.notes || <span className="italic text-[var(--foreground-tertiary)]">Click to add notes...</span>}
+                                    <span className="text-xs text-[var(--foreground-tertiary)]">📝 Notes: </span>
+                                    {item.notes || <span className="italic text-[var(--foreground-tertiary)]">Click to add...</span>}
                                   </p>
                                 )}
                               </div>
                               
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-col items-end gap-2">
                                 {/* Move to collection */}
                                 <select
                                   value={item.collectionId || ""}

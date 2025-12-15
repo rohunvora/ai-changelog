@@ -34,6 +34,16 @@ interface UpdatesResponse {
 
 type ViewMode = "opportunities" | "all";
 
+// Capability filter tags
+const CAPABILITY_FILTERS = [
+  { key: "voice", label: "🎤 Voice", keywords: ["voice", "realtime", "audio", "speech"] },
+  { key: "vision", label: "👁️ Vision", keywords: ["vision", "image", "screenshot", "visual"] },
+  { key: "tool_use", label: "🔧 Tool Use", keywords: ["tool", "function calling", "mcp", "computer use"] },
+  { key: "search", label: "🔍 Search", keywords: ["search", "research", "rag", "retrieval"] },
+  { key: "agents", label: "🤖 Agents", keywords: ["agent", "autonomous", "agentic"] },
+  { key: "reasoning", label: "🧠 Reasoning", keywords: ["reasoning", "o1", "o3", "chain of thought"] },
+] as const;
+
 export function ChangelogFeed() {
   const [updates, setUpdates] = useState<UpdateDisplay[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +56,7 @@ export function ChangelogFeed() {
   const [viewMode, setViewMode] = useState<ViewMode>("opportunities");
   const [selectedProvider, setSelectedProvider] = useState<ProviderKey | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCapability, setSelectedCapability] = useState<string | null>(null);
 
   const fetchUpdates = useCallback(async (reset = false) => {
     const currentOffset = reset ? 0 : offset;
@@ -87,9 +98,24 @@ export function ChangelogFeed() {
 
   // Fetch updates when filters change
   useEffect(() => {
-    setOffset(0);
-    fetchUpdates(true);
-  }, [selectedProvider, searchQuery, viewMode]);
+    const doFetch = async () => {
+      setOffset(0);
+      await fetchUpdates(true);
+    };
+    doFetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProvider, searchQuery, viewMode, selectedCapability]);
+
+  // Filter updates by capability client-side
+  const filteredUpdates = updates.filter(update => {
+    if (!selectedCapability) return true;
+    
+    const filter = CAPABILITY_FILTERS.find(f => f.key === selectedCapability);
+    if (!filter) return true;
+    
+    const text = `${update.title} ${update.content}`.toLowerCase();
+    return filter.keywords.some(kw => text.includes(kw));
+  });
 
   const handleLoadMore = () => {
     if (!loadingMore && hasMore) {
@@ -166,35 +192,68 @@ export function ChangelogFeed() {
       {/* Filters */}
       <div className="border-b border-[var(--border)] bg-[var(--background-secondary)]">
         <div className="max-w-5xl mx-auto px-4 lg:px-6 py-3">
-          <div className="flex items-center gap-3 flex-wrap">
-            <SearchBar value={searchQuery} onChange={setSearchQuery} />
-            
-            {/* Provider filter chips */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => setSelectedProvider(null)}
-                className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                  !selectedProvider
-                    ? "bg-[var(--foreground)] text-[var(--background)]"
-                    : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] hover:bg-[var(--border)]"
-                }`}
-              >
-                All
-              </button>
-              {Object.keys(PROVIDERS).map((provider) => (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <SearchBar value={searchQuery} onChange={setSearchQuery} />
+              
+              {/* Provider filter chips */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-[var(--foreground-tertiary)]">Provider:</span>
                 <button
-                  key={provider}
-                  onClick={() => setSelectedProvider(provider as ProviderKey)}
+                  onClick={() => setSelectedProvider(null)}
                   className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                    selectedProvider === provider
+                    !selectedProvider
                       ? "bg-[var(--foreground)] text-[var(--background)]"
                       : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] hover:bg-[var(--border)]"
                   }`}
                 >
-                  {PROVIDERS[provider as ProviderKey].name}
+                  All
                 </button>
-              ))}
+                {Object.keys(PROVIDERS).map((provider) => (
+                  <button
+                    key={provider}
+                    onClick={() => setSelectedProvider(provider as ProviderKey)}
+                    className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                      selectedProvider === provider
+                        ? "bg-[var(--foreground)] text-[var(--background)]"
+                        : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] hover:bg-[var(--border)]"
+                    }`}
+                  >
+                    {PROVIDERS[provider as ProviderKey].name}
+                  </button>
+                ))}
+              </div>
             </div>
+            
+            {/* Capability filter chips */}
+            {viewMode === "opportunities" && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-[var(--foreground-tertiary)]">Capability:</span>
+                <button
+                  onClick={() => setSelectedCapability(null)}
+                  className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                    !selectedCapability
+                      ? "bg-[var(--accent)] text-white"
+                      : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] hover:bg-[var(--border)]"
+                  }`}
+                >
+                  All
+                </button>
+                {CAPABILITY_FILTERS.map((cap) => (
+                  <button
+                    key={cap.key}
+                    onClick={() => setSelectedCapability(cap.key)}
+                    className={`px-3 py-1 text-xs rounded-full transition-colors ${
+                      selectedCapability === cap.key
+                        ? "bg-[var(--accent)] text-white"
+                        : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] hover:bg-[var(--border)]"
+                    }`}
+                  >
+                    {cap.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -218,7 +277,7 @@ export function ChangelogFeed() {
                 </div>
               ))}
             </div>
-          ) : updates.length === 0 ? (
+          ) : filteredUpdates.length === 0 ? (
           <div className="text-center py-16">
             {viewMode === "opportunities" ? (
               <>
@@ -269,11 +328,12 @@ export function ChangelogFeed() {
             </div>
           ) : (
             <>
-            {viewMode === "opportunities" && (
+            {viewMode === "opportunities" && filteredUpdates.length > 0 && (
               <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-[var(--accent)]/5 to-transparent border border-[var(--accent)]/20">
                 <p className="text-sm text-[var(--foreground-secondary)]">
                   <span className="font-medium text-[var(--foreground)]">
-                    {counts.opportunities} capability unlock{counts.opportunities !== 1 ? "s" : ""}
+                    {filteredUpdates.length} capability unlock{filteredUpdates.length !== 1 ? "s" : ""}
+                    {selectedCapability && ` (filtered by ${selectedCapability.replace(/_/g, " ")})`}
                   </span>
                   {" "}— These updates enable building something that wasn't possible before.
                 </p>
@@ -281,7 +341,7 @@ export function ChangelogFeed() {
             )}
 
               <div className="space-y-4">
-                {updates.map((update, index) => (
+                {filteredUpdates.map((update, index) => (
                   <div
                     key={update.id}
                     className="animate-fade-in"

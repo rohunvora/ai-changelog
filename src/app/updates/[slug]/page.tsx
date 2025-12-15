@@ -60,6 +60,33 @@ function formatMRR(cents: number): string {
   return `$${dollars.toFixed(0)}`;
 }
 
+// Score tooltips explaining what each score means
+const scoreTooltips: Record<string, string> = {
+  Indie: "Indie Viability: Can a solo developer or small team build this? 5 = Very easy, no external dependencies. 1 = Requires enterprise sales/large team.",
+  Speed: "Time to Revenue: How fast can you get to first paying customer? 5 = Days/weeks. 1 = Months/years.",
+  Opportunity: "Market Opportunity: Based on competition level. 5 = Blue ocean, few competitors. 1 = Highly saturated market.",
+};
+
+function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  const [show, setShow] = useState(false);
+  
+  return (
+    <div 
+      className="relative"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      {children}
+      {show && (
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-xs bg-[var(--background-tertiary)] border border-[var(--border)] rounded-lg shadow-lg whitespace-normal w-48 text-center">
+          {text}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[var(--background-tertiary)]" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ScoreBadge({ score, label }: { score: number; label: string }) {
   const colors = {
     1: "bg-red-500/20 text-red-400 border-red-500/40",
@@ -68,13 +95,23 @@ function ScoreBadge({ score, label }: { score: number; label: string }) {
     4: "bg-lime-500/20 text-lime-400 border-lime-500/40",
     5: "bg-green-500/20 text-green-400 border-green-500/40",
   };
+  
+  const tooltip = scoreTooltips[label] || `${label} Score: Higher is better (1-5 scale)`;
+  
   return (
-    <div className="flex flex-col items-center">
-      <div className={`w-10 h-10 rounded-lg border flex items-center justify-center text-lg font-bold ${colors[score as keyof typeof colors] || colors[3]}`}>
-        {score}
+    <Tooltip text={tooltip}>
+      <div className="flex flex-col items-center cursor-help">
+        <div className={`w-10 h-10 rounded-lg border flex items-center justify-center text-lg font-bold ${colors[score as keyof typeof colors] || colors[3]}`}>
+          {score}
+        </div>
+        <span className="text-xs text-[var(--foreground-tertiary)] mt-1 flex items-center gap-1">
+          {label}
+          <svg className="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </span>
       </div>
-      <span className="text-xs text-[var(--foreground-tertiary)] mt-1">{label}</span>
-    </div>
+    </Tooltip>
   );
 }
 
@@ -119,9 +156,10 @@ function OpportunityCard({
 }: { 
   opportunity: Opportunity; 
   index: number;
-  onSave: (id: string) => void;
+  onSave: (opportunity: Opportunity) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [saving, setSaving] = useState(false);
   
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--background-secondary)] overflow-hidden">
@@ -138,10 +176,19 @@ function OpportunityCard({
             </div>
           </div>
           <button
-            onClick={() => onSave(opportunity.id)}
-            className="shrink-0 px-3 py-1.5 text-sm rounded-lg bg-[var(--background-tertiary)] border border-[var(--border)] hover:border-[var(--accent)] text-[var(--foreground-secondary)] hover:text-[var(--accent)] transition-colors"
+            onClick={() => {
+              setSaving(true);
+              onSave(opportunity);
+              setTimeout(() => setSaving(false), 500);
+            }}
+            disabled={saving}
+            className={`shrink-0 px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              saving 
+                ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                : "bg-[var(--background-tertiary)] border border-[var(--border)] hover:border-[var(--accent)] text-[var(--foreground-secondary)] hover:text-[var(--accent)]"
+            }`}
           >
-            + Save
+            {saving ? "✓ Saved" : "+ Save"}
           </button>
         </div>
         
@@ -312,14 +359,25 @@ export default function UpdateDetailPage() {
     fetchUpdate();
   }, [slug]);
 
-  const handleSaveOpportunity = useCallback((opportunityId: string) => {
+  const handleSaveOpportunity = useCallback((opportunity: Opportunity) => {
     // Get existing saved items from localStorage
     const saved = JSON.parse(localStorage.getItem("savedItems") || "[]");
     const item = {
-      id: `opp-${opportunityId}`,
+      id: `opp-${opportunity.id}`,
       type: "opportunity",
-      itemId: opportunityId,
+      itemId: opportunity.id,
       updateId: update?.id,
+      updateTitle: update?.title,
+      title: opportunity.title, // Store human-readable title
+      description: opportunity.description,
+      targetUser: opportunity.targetUser,
+      pricingAnchor: opportunity.pricingAnchor,
+      // Store scores for display in saved page
+      scores: {
+        indie: opportunity.indieViabilityScore,
+        speed: opportunity.timeToRevenueScore,
+        opportunity: 5 - opportunity.competitionScore + 1,
+      },
       notes: "",
       addedAt: new Date().toISOString(),
     };
@@ -328,11 +386,11 @@ export default function UpdateDetailPage() {
     if (!saved.find((s: { id: string }) => s.id === item.id)) {
       saved.push(item);
       localStorage.setItem("savedItems", JSON.stringify(saved));
-      alert("Saved to your collection!");
+      alert("✓ Saved to your collection!");
     } else {
-      alert("Already saved!");
+      alert("Already in your collection!");
     }
-  }, [update?.id]);
+  }, [update?.id, update?.title]);
 
   const handleSaveUpdate = useCallback(() => {
     if (!update) return;

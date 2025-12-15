@@ -39,6 +39,12 @@ export async function GET(request: NextRequest) {
       founder: typeof schema.founders.$inferSelect;
       claim: typeof schema.mrrClaims.$inferSelect;
       sourceCount: number;
+      sources: Array<{
+        type: string;
+        url: string;
+        date: string | null;
+        rawText: string | null;
+      }>;
     }> = [];
     
     for (const founder of allFounders) {
@@ -59,7 +65,7 @@ export async function GET(request: NextRequest) {
       
       const claim = claims[0];
       
-      // Get source count
+      // Get sources for this claim
       const sources = await db
         .select()
         .from(schema.claimSources)
@@ -69,6 +75,12 @@ export async function GET(request: NextRequest) {
         founder,
         claim,
         sourceCount: sources.length,
+        sources: sources.map(s => ({
+          type: s.sourceType,
+          url: s.sourceUrl,
+          date: s.sourceDate ? new Date(s.sourceDate).toISOString() : null,
+          rawText: s.rawText,
+        })),
       });
     }
     
@@ -117,6 +129,7 @@ export async function GET(request: NextRequest) {
           mrr: row.claim.mrr, // In cents
           arr: row.claim.arr, // In cents
           claimDate: new Date(row.claim.claimDate).toISOString(),
+          scrapedAt: new Date(row.claim.scrapedAt).toISOString(),
           confidence: row.claim.confidence,
           confidenceReason: row.claim.confidenceReason,
           isStripeVerified: row.claim.isStripeVerified,
@@ -124,6 +137,7 @@ export async function GET(request: NextRequest) {
           hasMultipleSources: row.claim.hasMultipleSources,
         },
         sourceCount: row.sourceCount || 0,
+        sources: row.sources || [],
       };
     });
     

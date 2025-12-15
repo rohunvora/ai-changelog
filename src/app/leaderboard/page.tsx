@@ -5,6 +5,13 @@ import Link from "next/link";
 import { formatDistanceToNow, subDays, isAfter } from "date-fns";
 
 // Types
+interface Source {
+  type: string;
+  url: string;
+  date: string | null;
+  rawText: string | null;
+}
+
 interface LeaderboardEntry {
   founder: {
     id: string;
@@ -23,6 +30,7 @@ interface LeaderboardEntry {
     mrr: number;
     arr?: number;
     claimDate: string;
+    scrapedAt?: string;
     confidence: "high" | "medium" | "low";
     confidenceReason?: string;
     isStripeVerified: boolean;
@@ -30,6 +38,7 @@ interface LeaderboardEntry {
     hasMultipleSources: boolean;
   };
   sourceCount: number;
+  sources?: Source[];
 }
 
 interface LeaderboardResponse {
@@ -149,7 +158,19 @@ function InfoTooltip({ children, tooltip }: { children: React.ReactNode; tooltip
 }
 
 // Expanded row component
+// Source type icons
+const SOURCE_ICONS: Record<string, string> = {
+  twitter: "𝕏",
+  indie_hackers: "IH",
+  open_startup: "📊",
+  interview: "🎙️",
+  manual: "✍️",
+};
+
 function ExpandedRow({ entry }: { entry: LeaderboardEntry }) {
+  const claimDate = new Date(entry.claim.claimDate);
+  const isStale = !isAfter(claimDate, subDays(new Date(), 365));
+  
   return (
     <tr className="expanded-content" role="row">
       <td colSpan={8} className="p-0" role="cell">
@@ -181,7 +202,7 @@ function ExpandedRow({ entry }: { entry: LeaderboardEntry }) {
             )}
           </div>
           
-          {/* Center: Stats */}
+          {/* Center: Stats & Verification */}
           <div className="space-y-4">
             <div>
               <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">📊 Revenue Details</h4>
@@ -195,7 +216,16 @@ function ExpandedRow({ entry }: { entry: LeaderboardEntry }) {
                   <div className="text-sm text-[var(--foreground-secondary)]">Annual Revenue</div>
                 </div>
               </div>
+              
+              {/* Claim date with warning */}
+              <div className={`mt-3 p-2 rounded-lg text-sm ${isStale ? "bg-[var(--confidence-low)]/10 border border-[var(--confidence-low)]/30" : "bg-[var(--background-tertiary)]"}`}>
+                <span className={isStale ? "text-[var(--confidence-low)]" : "text-[var(--foreground-secondary)]"}>
+                  {isStale && "⚠️ "}Claimed: {claimDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {isStale && " — Data may be outdated"}
+                </span>
+              </div>
             </div>
+            
             <div>
               <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">🔍 Verification Status</h4>
               <ul className="space-y-2" role="list">
@@ -215,10 +245,10 @@ function ExpandedRow({ entry }: { entry: LeaderboardEntry }) {
             </div>
           </div>
           
-          {/* Right: Links */}
+          {/* Right: Links & Sources */}
           <div className="space-y-4">
             <div>
-              <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">🔗 Links</h4>
+              <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">🔗 Product Links</h4>
               <nav className="space-y-2">
                 {entry.founder.productUrl && (
                   <a href={entry.founder.productUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-base text-[var(--accent)] hover:underline">
@@ -234,15 +264,44 @@ function ExpandedRow({ entry }: { entry: LeaderboardEntry }) {
                 )}
               </nav>
             </div>
+            
+            {/* MRR Claim Sources */}
+            <div>
+              <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">📎 Revenue Sources ({entry.sourceCount})</h4>
+              {entry.sources && entry.sources.length > 0 ? (
+                <ul className="space-y-2">
+                  {entry.sources.map((source, i) => (
+                    <li key={i}>
+                      <a 
+                        href={source.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="flex items-center gap-2 text-sm text-[var(--accent)] hover:underline"
+                      >
+                        <span className="w-6 h-6 rounded flex items-center justify-center bg-[var(--background-tertiary)] text-xs">
+                          {SOURCE_ICONS[source.type] || "🔗"}
+                        </span>
+                        <span className="capitalize">{source.type.replace(/_/g, " ")}</span>
+                        {source.date && (
+                          <span className="text-[var(--foreground-tertiary)]">
+                            ({new Date(source.date).toLocaleDateString("en-US", { month: "short", year: "2-digit" })})
+                          </span>
+                        )}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-[var(--foreground-tertiary)] italic">No direct source links available</p>
+              )}
+            </div>
+            
             {entry.claim.confidenceReason && (
               <div>
                 <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">📝 Data Note</h4>
                 <p className="text-sm text-[var(--foreground-secondary)]">{entry.claim.confidenceReason}</p>
               </div>
             )}
-            <p className="text-xs text-[var(--foreground-tertiary)] pt-2">
-              Claimed: {formatDistanceToNow(new Date(entry.claim.claimDate), { addSuffix: true })}
-            </p>
           </div>
         </div>
       </td>
@@ -733,6 +792,18 @@ export default function LeaderboardPage() {
               </select>
             </div>
             
+            {/* Verified Only Toggle */}
+            <button
+              onClick={() => setConfidenceFilter(confidenceFilter === "high" ? "all" : "high")}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors font-medium ${
+                confidenceFilter === "high"
+                  ? "bg-[var(--confidence-high)] text-white"
+                  : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] border border-[var(--border)] hover:border-[var(--confidence-high)] hover:text-[var(--confidence-high)]"
+              }`}
+            >
+              ✓ Verified Only
+            </button>
+            
             {/* Confidence Filter */}
             <div className="flex items-center gap-1">
               {[
@@ -780,6 +851,21 @@ export default function LeaderboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Warning Banner for unverified data */}
+      {confidenceFilter !== "high" && !loading && filteredData.some(e => e.claim.confidence !== "high") && (
+        <div className="bg-[var(--confidence-low)]/10 border-b border-[var(--confidence-low)]/30">
+          <div className="max-w-7xl mx-auto px-4 lg:px-6 py-2">
+            <p className="text-sm text-[var(--confidence-low)] flex items-center gap-2">
+              <span>⚠️</span>
+              <span>
+                <strong>Note:</strong> You are viewing data that includes self-reported or unverified revenue claims. 
+                Use the <button onClick={() => setConfidenceFilter("high")} className="underline font-medium hover:no-underline">Verified Only</button> filter to show only high-confidence entries.
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <main id="main-content" className="max-w-7xl mx-auto px-4 lg:px-6 py-6">
