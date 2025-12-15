@@ -5,9 +5,10 @@ import { useState, useEffect } from "react";
 interface SearchBarProps {
   value: string;
   onChange: (value: string) => void;
+  placeholder?: string;
 }
 
-export function SearchBar({ value, onChange }: SearchBarProps) {
+export function SearchBar({ value, onChange, placeholder = "Search updates..." }: SearchBarProps) {
   const [localValue, setLocalValue] = useState(value);
 
   // Debounce search input

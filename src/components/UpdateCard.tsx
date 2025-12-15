@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { ProviderBadge } from "./ProviderBadge";
 import { ProviderKey } from "@/lib/scrapers/types";
 import { formatDistanceToNow } from "date-fns";
+import Link from "next/link";
 
 // API-transformed update type
 interface UpdateDisplay {
@@ -141,6 +142,33 @@ function generateBuildIdeas(title: string, content: string): string[] {
 
 export function UpdateCard({ update, isOpportunity = false }: UpdateCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+
+  // Check if already saved on mount
+  useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = JSON.parse(localStorage.getItem("savedItems") || "[]");
+      setIsSaved(saved.some((s: { itemId: string }) => s.itemId === update.id));
+    }
+  });
+
+  const handleSave = useCallback(() => {
+    const saved = JSON.parse(localStorage.getItem("savedItems") || "[]");
+    const item = {
+      id: `update-${update.id}`,
+      type: "update",
+      itemId: update.id,
+      title: update.title,
+      notes: "",
+      addedAt: new Date().toISOString(),
+    };
+    
+    if (!saved.find((s: { id: string }) => s.id === item.id)) {
+      saved.push(item);
+      localStorage.setItem("savedItems", JSON.stringify(saved));
+      setIsSaved(true);
+    }
+  }, [update.id, update.title]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -194,10 +222,13 @@ export function UpdateCard({ update, isOpportunity = false }: UpdateCardProps) {
           </span>
         </div>
 
-        {/* Title */}
-        <h3 className="text-lg font-semibold text-[var(--foreground)] mb-3 leading-tight">
+        {/* Title - links to detail page */}
+        <Link 
+          href={`/updates/${update.id}`}
+          className="block text-lg font-semibold text-[var(--foreground)] mb-3 leading-tight hover:text-[var(--accent)] transition-colors"
+        >
           {update.title}
-        </h3>
+        </Link>
 
         {/* Content */}
         <p className="text-sm text-[var(--foreground-secondary)] leading-relaxed mb-4">
@@ -238,6 +269,13 @@ export function UpdateCard({ update, isOpportunity = false }: UpdateCardProps) {
 
         {/* Actions */}
         <div className="flex items-center gap-3 pt-4 border-t border-[var(--border)]">
+          <Link
+            href={`/updates/${update.id}`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--accent)] text-white hover:bg-[var(--accent-secondary)] transition-colors"
+          >
+            <span>🎯</span>
+            Explore Opportunities
+          </Link>
           <a
             href={update.url}
             target="_blank"
@@ -247,8 +285,19 @@ export function UpdateCard({ update, isOpportunity = false }: UpdateCardProps) {
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
-            Read announcement
+            Source
           </a>
+          <button
+            onClick={(e) => { e.preventDefault(); handleSave(); }}
+            disabled={isSaved}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              isSaved
+                ? "bg-green-500/10 text-green-400 border border-green-500/30"
+                : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] hover:bg-[var(--border)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            {isSaved ? "✓ Saved" : "+ Save"}
+          </button>
         </div>
       </div>
     </div>

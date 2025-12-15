@@ -156,3 +156,61 @@ export type NewMRRClaim = typeof mrrClaims.$inferInsert;
 export type ClaimSource = typeof claimSources.$inferSelect;
 export type NewClaimSource = typeof claimSources.$inferInsert;
 
+// Structured opportunities (linked to updates)
+export const opportunities = sqliteTable("opportunities", {
+  id: text("id").primaryKey(), // ULID
+  updateId: text("update_id").notNull(), // Links to parent update
+  
+  // Opportunity basics
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  
+  // Targeting
+  targetUser: text("target_user").notNull(), // "SMB founders", "Content creators"
+  jobToBeDone: text("job_to_be_done").notNull(), // Pain point + frequency
+  surfaceArea: text("surface_area", { 
+    enum: ["web_app", "chrome_ext", "api", "mobile", "slack_bot", "cli"] 
+  }).notNull(),
+  
+  // Dependencies (JSON array)
+  hardDependencies: text("hard_dependencies"), // ["tool_use", "realtime_voice", "vision"]
+  
+  // Distribution (JSON array)
+  distributionWedge: text("distribution_wedge"), // ["seo", "templates", "marketplace"]
+  moatPotential: text("moat_potential"), // ["data_flywheel", "workflow_lock"]
+  
+  // Scores (1-5)
+  indieViabilityScore: integer("indie_viability_score").notNull(),
+  timeToRevenueScore: integer("time_to_revenue_score").notNull(),
+  competitionScore: integer("competition_score").notNull(),
+  
+  // Business details
+  pricingAnchor: text("pricing_anchor"), // "$29/mo", "Usage-based"
+  mvpBullets: text("mvp_bullets"), // JSON array of 10 bullet MVP spec
+  risks: text("risks"), // JSON array of risks
+  
+  // Related products (JSON array of founder IDs)
+  relatedProductIds: text("related_product_ids"),
+  
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => ({
+  updateIdx: index("opportunities_update_idx").on(t.updateId),
+  surfaceIdx: index("opportunities_surface_idx").on(t.surfaceArea),
+}));
+
+// Capability tags (shared taxonomy)
+export const CAPABILITY_TAGS = [
+  "reasoning", "multimodal", "tool_use", "voice", 
+  "search", "agents", "code_gen", "vision", "browsing",
+  "fine_tuning", "embeddings", "realtime", "computer_use"
+] as const;
+
+export const VERTICAL_TAGS = [
+  "saas", "ecommerce", "productivity", "dev_tools",
+  "ai_writing", "scheduling", "legal", "healthcare", 
+  "finance", "education", "marketing", "support"
+] as const;
+
+export type Opportunity = typeof opportunities.$inferSelect;
+export type NewOpportunity = typeof opportunities.$inferInsert;
+

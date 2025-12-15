@@ -134,6 +134,30 @@ export async function ensureDb() {
         created_at INTEGER NOT NULL
       )
     `);
+    
+    // Opportunities table (structured business opportunities linked to updates)
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS opportunities (
+        id TEXT PRIMARY KEY,
+        update_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        target_user TEXT NOT NULL,
+        job_to_be_done TEXT NOT NULL,
+        surface_area TEXT NOT NULL,
+        hard_dependencies TEXT,
+        distribution_wedge TEXT,
+        moat_potential TEXT,
+        indie_viability_score INTEGER NOT NULL,
+        time_to_revenue_score INTEGER NOT NULL,
+        competition_score INTEGER NOT NULL,
+        pricing_anchor TEXT,
+        mvp_bullets TEXT,
+        risks TEXT,
+        related_product_ids TEXT,
+        created_at INTEGER NOT NULL
+      )
+    `);
 
     // Create indexes
     await client.execute(`CREATE UNIQUE INDEX IF NOT EXISTS updates_provider_url_idx ON updates(provider, url)`);
@@ -152,6 +176,10 @@ export async function ensureDb() {
     await client.execute(`CREATE INDEX IF NOT EXISTS mrr_claims_confidence_idx ON mrr_claims(confidence)`);
     await client.execute(`CREATE INDEX IF NOT EXISTS claim_sources_claim_idx ON claim_sources(claim_id)`);
     await client.execute(`CREATE INDEX IF NOT EXISTS claim_sources_type_idx ON claim_sources(source_type)`);
+    
+    // Opportunities indexes
+    await client.execute(`CREATE INDEX IF NOT EXISTS opportunities_update_idx ON opportunities(update_id)`);
+    await client.execute(`CREATE INDEX IF NOT EXISTS opportunities_surface_idx ON opportunities(surface_area)`);
 
     // Check if we need to seed updates
     const result = await db.select({ count: sql<number>`count(*)` }).from(schema.updates);
@@ -171,6 +199,20 @@ export async function ensureDb() {
       console.log("Leaderboard empty, seeding with vibecoded apps...");
       const { seedLeaderboard } = await import("@/lib/seed-leaderboard");
       await seedLeaderboard();
+    }
+    
+    // Check if we need to seed opportunities
+    try {
+      const oppsResult = await db.select({ count: sql<number>`count(*)` }).from(schema.opportunities);
+      const oppsCount = oppsResult[0]?.count || 0;
+      
+      if (oppsCount === 0) {
+        console.log("Opportunities empty, seeding structured opportunities...");
+        const { seedOpportunities } = await import("@/lib/seed-opportunities");
+        await seedOpportunities();
+      }
+    } catch {
+      // Table might not exist yet, that's okay
     }
     
     isInitialized = true;
