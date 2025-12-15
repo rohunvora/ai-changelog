@@ -1,20 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { Update, Idea } from "@/db/schema";
 import { ProviderBadge } from "./ProviderBadge";
 import { CategoryBadge } from "./CategoryBadge";
-import { IdeaCard } from "./IdeaCard";
+import { IdeaCard, IdeaDisplay } from "./IdeaCard";
 import { ProviderKey } from "@/lib/scrapers/types";
 import { formatDistanceToNow } from "date-fns";
 
+// API-transformed update type
+interface UpdateDisplay {
+  id: string;
+  provider: string;
+  title: string;
+  content: string;  // contentMd or contentText
+  url: string;
+  category: string | null;
+  publishedAt: string;
+  scrapedAt: string;
+}
+
 interface UpdateCardProps {
-  update: Update;
-  initialIdeas?: Idea[];
+  update: UpdateDisplay;
+  initialIdeas?: IdeaDisplay[];
 }
 
 export function UpdateCard({ update, initialIdeas = [] }: UpdateCardProps) {
-  const [ideas, setIdeas] = useState<Idea[]>(initialIdeas);
+  const [ideas, setIdeas] = useState<IdeaDisplay[]>(initialIdeas);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showIdeas, setShowIdeas] = useState(false);

@@ -1,3 +1,22 @@
+/**
+ * Normalized update from a scraper connector.
+ * All scrapers must return this shape for consistent processing.
+ */
+export interface NormalizedUpdate {
+  provider: ProviderKey;
+  title: string;
+  url: string;
+  publishedAt: number;        // timestamp in ms
+  contentHtml: string;        // raw HTML for storage
+  contentText: string;        // stripped text for search
+  contentMd?: string;         // markdown for rendering (optional, will be derived if not provided)
+  category?: CategoryKey;
+  externalId?: string;        // provider's own ID if available
+}
+
+/**
+ * @deprecated Use NormalizedUpdate instead
+ */
 export interface ScrapedUpdate {
   provider: string;
   title: string;
@@ -11,7 +30,7 @@ export interface ScrapedUpdate {
 export interface Scraper {
   name: string;
   provider: string;
-  scrape(): Promise<ScrapedUpdate[]>;
+  scrape(): Promise<NormalizedUpdate[]>;
 }
 
 export const PROVIDERS = {

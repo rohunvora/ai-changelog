@@ -9,16 +9,15 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const updateId = parseInt(id);
 
-    if (isNaN(updateId)) {
+    if (!id || id.length === 0) {
       return NextResponse.json({ error: "Invalid update ID" }, { status: 400 });
     }
 
     const update = await db
       .select()
       .from(schema.updates)
-      .where(eq(schema.updates.id, updateId))
+      .where(eq(schema.updates.id, id))
       .limit(1);
 
     if (update.length === 0) {
@@ -29,10 +28,18 @@ export async function GET(
     const ideas = await db
       .select()
       .from(schema.ideas)
-      .where(eq(schema.ideas.updateId, updateId));
+      .where(eq(schema.ideas.updateId, id));
+
+    // Transform for frontend compatibility
+    const transformedUpdate = {
+      ...update[0],
+      content: update[0].contentMd || update[0].contentText,
+      publishedAt: new Date(update[0].publishedAt).toISOString(),
+      scrapedAt: new Date(update[0].scrapedAt).toISOString(),
+    };
 
     return NextResponse.json({
-      update: update[0],
+      update: transformedUpdate,
       ideas,
     });
   } catch (error) {

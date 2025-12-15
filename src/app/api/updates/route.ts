@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/db";
-import { desc, eq, and, like, sql } from "drizzle-orm";
+import { desc, eq, and, sql } from "drizzle-orm";
 import { ProviderKey, CategoryKey } from "@/lib/scrapers";
 
 // GET /api/updates - Get all updates with filtering
@@ -25,21 +25,34 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
+      // Search in title and contentText (the searchable text field)
       conditions.push(
-        sql`(${schema.updates.title} LIKE ${"%" + search + "%"} OR ${schema.updates.content} LIKE ${"%" + search + "%"})`
+        sql`(${schema.updates.title} LIKE ${"%" + search + "%"} OR ${schema.updates.contentText} LIKE ${"%" + search + "%"})`
       );
     }
 
     // Execute query
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    const updates = await db
+    const rawUpdates = await db
       .select()
       .from(schema.updates)
       .where(whereClause)
       .orderBy(desc(schema.updates.publishedAt))
       .limit(limit)
       .offset(offset);
+
+    // Transform to match expected frontend format
+    const updates = rawUpdates.map((u) => ({
+      id: u.id,
+      provider: u.provider,
+      title: u.title,
+      content: u.contentMd || u.contentText, // Use markdown for display, fallback to text
+      url: u.url,
+      category: u.category,
+      publishedAt: new Date(u.publishedAt).toISOString(),
+      scrapedAt: new Date(u.scrapedAt).toISOString(),
+    }));
 
     // Get total count
     const countResult = await db

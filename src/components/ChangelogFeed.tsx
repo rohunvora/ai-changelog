@@ -1,21 +1,32 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Update } from "@/db/schema";
 import { UpdateCard } from "./UpdateCard";
 import { Sidebar } from "./Sidebar";
 import { SearchBar } from "./SearchBar";
 import { MobileHeader } from "./MobileHeader";
 import { ProviderKey, CategoryKey } from "@/lib/scrapers/types";
 
+// API-transformed update type
+interface UpdateDisplay {
+  id: string;
+  provider: string;
+  title: string;
+  content: string;
+  url: string;
+  category: string | null;
+  publishedAt: string;
+  scrapedAt: string;
+}
+
 interface UpdatesResponse {
-  updates: Update[];
+  updates: UpdateDisplay[];
   total: number;
   hasMore: boolean;
 }
 
 export function ChangelogFeed() {
-  const [updates, setUpdates] = useState<Update[]>([]);
+  const [updates, setUpdates] = useState<UpdateDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);

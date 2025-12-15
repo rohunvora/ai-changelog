@@ -1,11 +1,12 @@
 import * as cheerio from "cheerio";
-import { ScrapedUpdate, categorizeUpdate } from "./types";
+import { NormalizedUpdate, categorizeUpdate } from "./types";
+import { htmlToText, parseDate } from "../scrape/utils";
 
 const PERPLEXITY_DOCS_URL = "https://docs.perplexity.ai/changelog";
 const PERPLEXITY_BLOG_URL = "https://www.perplexity.ai/hub";
 
-export async function scrapePerplexity(): Promise<ScrapedUpdate[]> {
-  const updates: ScrapedUpdate[] = [];
+export async function scrapePerplexity(): Promise<NormalizedUpdate[]> {
+  const updates: NormalizedUpdate[] = [];
 
   try {
     // Try the docs changelog
@@ -32,32 +33,34 @@ export async function scrapePerplexity(): Promise<ScrapedUpdate[]> {
           headerText.match(/\w+ \d{4}/)
         ) {
           const $content = $header.nextUntil("h1, h2, h3");
-          const items: string[] = [];
+          const items: Array<{ text: string; html: string }> = [];
 
           $content.find("li").each((_, li) => {
-            items.push($(li).text().trim());
+            items.push({ text: $(li).text().trim(), html: $(li).html() || "" });
           });
 
           $content.filter("p").each((_, p) => {
             const text = $(p).text().trim();
             if (text.length > 20) {
-              items.push(text);
+              items.push({ text, html: $(p).html() || "" });
             }
           });
 
           if (items.length === 0) {
-            items.push($content.text().trim());
+            const allHtml = $content.html() || "";
+            items.push({ text: $content.text().trim(), html: allHtml });
           }
 
           items.forEach((item, index) => {
-            if (item.length > 10) {
+            if (item.text.length > 10) {
               updates.push({
                 provider: "perplexity",
-                title: item.slice(0, 200),
-                content: item,
+                title: item.text.slice(0, 200),
                 url: PERPLEXITY_DOCS_URL,
-                category: categorizeUpdate(item, item),
-                publishedAt: headerText,
+                contentHtml: item.html,
+                contentText: item.text,
+                category: categorizeUpdate(item.text, item.text),
+                publishedAt: parseDate(headerText),
                 externalId: `perplexity-${headerText}-${index}`,
               });
             }
@@ -71,17 +74,19 @@ export async function scrapePerplexity(): Promise<ScrapedUpdate[]> {
           (_, element) => {
             const $el = $(element);
             const title = $el.find("h2, h3, h4, strong").first().text().trim();
-            const content = $el.find("p").text().trim();
+            const contentHtml = $el.find("p").html() || "";
+            const contentText = htmlToText(contentHtml) || $el.find("p").text().trim();
             const dateText = $el.find("time, [class*='date']").text().trim();
 
             if (title && title.length > 5) {
               updates.push({
                 provider: "perplexity",
                 title: title.slice(0, 200),
-                content: content.slice(0, 2000) || title,
                 url: PERPLEXITY_DOCS_URL,
-                category: categorizeUpdate(title, content),
-                publishedAt: dateText || new Date().toISOString(),
+                contentHtml: contentHtml.slice(0, 10000),
+                contentText: contentText.slice(0, 2000) || title,
+                category: categorizeUpdate(title, contentText),
+                publishedAt: parseDate(dateText),
                 externalId: `perplexity-${Buffer.from(title).toString("base64").slice(0, 20)}`,
               });
             }
@@ -105,17 +110,19 @@ export async function scrapePerplexity(): Promise<ScrapedUpdate[]> {
       $("article, [class*='post'], [class*='card']").each((_, element) => {
         const $el = $(element);
         const title = $el.find("h2, h3, [class*='title']").first().text().trim();
-        const content = $el.find("p, [class*='excerpt']").text().trim();
+        const contentHtml = $el.find("p, [class*='excerpt']").html() || "";
+        const contentText = htmlToText(contentHtml) || $el.find("p, [class*='excerpt']").text().trim();
         const link = $el.find("a").first().attr("href");
 
         if (title && title.length > 5 && !updates.find((u) => u.title === title)) {
           updates.push({
             provider: "perplexity",
             title: title.slice(0, 200),
-            content: content.slice(0, 2000) || title,
             url: link?.startsWith("http") ? link : `https://www.perplexity.ai${link || ""}`,
-            category: categorizeUpdate(title, content),
-            publishedAt: new Date().toISOString(),
+            contentHtml: contentHtml.slice(0, 10000),
+            contentText: contentText.slice(0, 2000) || title,
+            category: categorizeUpdate(title, contentText),
+            publishedAt: parseDate(undefined),
             externalId: `perplexity-blog-${Buffer.from(title).toString("base64").slice(0, 20)}`,
           });
         }

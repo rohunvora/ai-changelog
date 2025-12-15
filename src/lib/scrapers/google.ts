@@ -1,10 +1,11 @@
 import * as cheerio from "cheerio";
-import { ScrapedUpdate, categorizeUpdate } from "./types";
+import { NormalizedUpdate, categorizeUpdate } from "./types";
+import { htmlToText, parseDate } from "../scrape/utils";
 
 const GOOGLE_AI_CHANGELOG = "https://ai.google.dev/gemini-api/docs/changelog";
 
-export async function scrapeGoogle(): Promise<ScrapedUpdate[]> {
-  const updates: ScrapedUpdate[] = [];
+export async function scrapeGoogle(): Promise<NormalizedUpdate[]> {
+  const updates: NormalizedUpdate[] = [];
 
   try {
     const response = await fetch(GOOGLE_AI_CHANGELOG, {
@@ -34,29 +35,30 @@ export async function scrapeGoogle(): Promise<ScrapedUpdate[]> {
         dateText.match(/\d{1,2} \w+ \d{4}/)
       ) {
         const $content = $header.nextUntil("h2, h3");
-        const items: string[] = [];
+        const items: Array<{ text: string; html: string }> = [];
 
         $content.find("li").each((_, li) => {
-          items.push($(li).text().trim());
+          items.push({ text: $(li).text().trim(), html: $(li).html() || "" });
         });
 
         // Also get paragraph content
         $content.filter("p").each((_, p) => {
           const text = $(p).text().trim();
           if (text.length > 20) {
-            items.push(text);
+            items.push({ text, html: $(p).html() || "" });
           }
         });
 
         items.forEach((item, index) => {
-          if (item.length > 10) {
+          if (item.text.length > 10) {
             updates.push({
               provider: "google",
-              title: item.slice(0, 200),
-              content: item,
+              title: item.text.slice(0, 200),
               url: GOOGLE_AI_CHANGELOG,
-              category: categorizeUpdate(item, item),
-              publishedAt: dateText,
+              contentHtml: item.html,
+              contentText: item.text,
+              category: categorizeUpdate(item.text, item.text),
+              publishedAt: parseDate(dateText),
               externalId: `google-${dateText}-${index}`,
             });
           }
@@ -70,16 +72,18 @@ export async function scrapeGoogle(): Promise<ScrapedUpdate[]> {
         const $el = $(element);
         $el.find("h3, h4, strong").each((_, header) => {
           const title = $(header).text().trim();
-          const content = $(header).parent().text().trim();
+          const contentHtml = $(header).parent().html() || "";
+          const contentText = htmlToText(contentHtml) || $(header).parent().text().trim();
 
-          if (title.length > 10 && content.length > 20) {
+          if (title.length > 10 && contentText.length > 20) {
             updates.push({
               provider: "google",
               title: title.slice(0, 200),
-              content: content.slice(0, 2000),
               url: GOOGLE_AI_CHANGELOG,
-              category: categorizeUpdate(title, content),
-              publishedAt: new Date().toISOString(),
+              contentHtml: contentHtml.slice(0, 10000),
+              contentText: contentText.slice(0, 2000),
+              category: categorizeUpdate(title, contentText),
+              publishedAt: parseDate(undefined),
               externalId: `google-${Buffer.from(title).toString("base64").slice(0, 20)}`,
             });
           }

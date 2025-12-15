@@ -1,10 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { Idea } from "@/db/schema";
+
+// API-transformed idea type (different from DB schema)
+export interface IdeaDisplay {
+  id: string;
+  updateId: string;
+  title: string;
+  description: string;
+  complexity: string | null;       // "low" | "medium" | "high" (transformed from 1-5)
+  potentialImpact: string | null;  // "low" | "medium" | "high" (transformed from 1-5)
+  techStack: string | null;
+  generatedAt: string;
+  saved?: boolean;                 // Added by API based on bookmarks
+}
 
 interface IdeaCardProps {
-  idea: Idea;
+  idea: IdeaDisplay;
 }
 
 const complexityColors = {

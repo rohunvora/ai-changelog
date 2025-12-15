@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Idea } from "@/db/schema";
-import { IdeaCard } from "@/components/IdeaCard";
+import { IdeaCard, IdeaDisplay } from "@/components/IdeaCard";
 import Link from "next/link";
 
 export default function SavedIdeasPage() {
-  const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [ideas, setIdeas] = useState<IdeaDisplay[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

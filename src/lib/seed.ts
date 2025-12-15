@@ -1,5 +1,6 @@
 import { db, schema } from "@/db";
-import { sql } from "drizzle-orm";
+import { ulid } from "ulid";
+import { computeHash } from "./scrape/utils";
 
 // Real, current AI updates as of December 2025
 const realUpdates = [
@@ -170,15 +171,32 @@ const realUpdates = [
 export async function seedDatabase() {
   console.log("Clearing old data and seeding with current AI updates...");
   
-  // Clear existing updates and ideas
+  // Clear existing data (order matters for foreign keys)
+  await db.delete(schema.ideaBookmarks);
   await db.delete(schema.ideas);
   await db.delete(schema.updates);
+  await db.delete(schema.locks);
+  
+  const now = Date.now();
   
   for (const update of realUpdates) {
     try {
+      const publishedAt = new Date(update.publishedAt).getTime();
+      const hash = computeHash(update.title, update.url, publishedAt, update.content);
+      
       await db.insert(schema.updates).values({
-        ...update,
-        scrapedAt: new Date().toISOString(),
+        id: ulid(),
+        provider: update.provider,
+        title: update.title,
+        url: update.url,
+        category: update.category,
+        contentText: update.content,
+        contentMd: update.content,
+        raw: "",
+        hash,
+        publishedAt: new Date(publishedAt),
+        scrapedAt: new Date(now),
+        externalId: update.externalId,
       });
       console.log(`  ✓ Added: ${update.title.slice(0, 60)}...`);
     } catch (error) {

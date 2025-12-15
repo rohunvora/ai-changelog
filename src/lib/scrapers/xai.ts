@@ -1,12 +1,13 @@
 import * as cheerio from "cheerio";
 import Parser from "rss-parser";
-import { ScrapedUpdate, categorizeUpdate } from "./types";
+import { NormalizedUpdate, categorizeUpdate } from "./types";
+import { htmlToText, parseDate } from "../scrape/utils";
 
 const XAI_BLOG_URL = "https://x.ai/blog";
 const XAI_DOCS_URL = "https://docs.x.ai/changelog";
 
-export async function scrapeXAI(): Promise<ScrapedUpdate[]> {
-  const updates: ScrapedUpdate[] = [];
+export async function scrapeXAI(): Promise<NormalizedUpdate[]> {
+  const updates: NormalizedUpdate[] = [];
   const parser = new Parser();
 
   try {
@@ -15,13 +16,16 @@ export async function scrapeXAI(): Promise<ScrapedUpdate[]> {
       const feed = await parser.parseURL("https://x.ai/blog/rss");
       feed.items?.forEach((item) => {
         if (item.title && item.link) {
+          const contentHtml = item.content || item.contentSnippet || "";
+          const contentText = htmlToText(contentHtml) || item.contentSnippet || item.title;
           updates.push({
             provider: "xai",
             title: item.title.slice(0, 200),
-            content: item.contentSnippet?.slice(0, 2000) || item.content?.slice(0, 2000) || item.title,
             url: item.link,
-            category: categorizeUpdate(item.title, item.contentSnippet || ""),
-            publishedAt: item.isoDate || item.pubDate || new Date().toISOString(),
+            contentHtml: contentHtml.slice(0, 10000),
+            contentText: contentText.slice(0, 2000),
+            category: categorizeUpdate(item.title, contentText),
+            publishedAt: parseDate(item.isoDate || item.pubDate),
             externalId: `xai-${item.guid || item.link}`,
           });
         }
@@ -50,7 +54,8 @@ export async function scrapeXAI(): Promise<ScrapedUpdate[]> {
             const title =
               $el.find("h2, h3, h4, [class*='title']").first().text().trim() ||
               $el.attr("title");
-            const content = $el.find("p, [class*='excerpt'], [class*='description']").text().trim();
+            const contentHtml = $el.find("p, [class*='excerpt'], [class*='description']").html() || "";
+            const contentText = htmlToText(contentHtml) || $el.find("p, [class*='excerpt'], [class*='description']").text().trim();
             const link = $el.attr("href") || $el.find("a").first().attr("href");
             const dateText = $el.find("time, [class*='date']").text().trim();
 
@@ -61,10 +66,11 @@ export async function scrapeXAI(): Promise<ScrapedUpdate[]> {
               updates.push({
                 provider: "xai",
                 title: title.slice(0, 200),
-                content: content.slice(0, 2000) || title,
                 url: fullUrl || XAI_BLOG_URL,
-                category: categorizeUpdate(title, content),
-                publishedAt: dateText || new Date().toISOString(),
+                contentHtml: contentHtml.slice(0, 10000),
+                contentText: contentText.slice(0, 2000) || title,
+                category: categorizeUpdate(title, contentText),
+                publishedAt: parseDate(dateText),
                 externalId: `xai-${Buffer.from(title).toString("base64").slice(0, 20)}`,
               });
             }
@@ -89,16 +95,18 @@ export async function scrapeXAI(): Promise<ScrapedUpdate[]> {
         $("h2, h3").each((_, header) => {
           const $header = $(header);
           const title = $header.text().trim();
-          const content = $header.nextUntil("h2, h3").text().trim();
+          const contentHtml = $header.nextUntil("h2, h3").html() || "";
+          const contentText = htmlToText(contentHtml) || $header.nextUntil("h2, h3").text().trim();
 
           if (title.match(/\d{4}/) || title.match(/v\d/i)) {
             updates.push({
               provider: "xai",
               title: `API: ${title}`.slice(0, 200),
-              content: content.slice(0, 2000) || title,
               url: XAI_DOCS_URL,
+              contentHtml: contentHtml.slice(0, 10000),
+              contentText: contentText.slice(0, 2000) || title,
               category: "api_update",
-              publishedAt: title,
+              publishedAt: parseDate(title),
               externalId: `xai-docs-${Buffer.from(title).toString("base64").slice(0, 20)}`,
             });
           }

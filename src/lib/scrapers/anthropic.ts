@@ -1,11 +1,12 @@
 import * as cheerio from "cheerio";
-import { ScrapedUpdate, categorizeUpdate } from "./types";
+import { NormalizedUpdate, categorizeUpdate } from "./types";
+import { htmlToText, parseDate } from "../scrape/utils";
 
 const ANTHROPIC_CHANGELOG_URL = "https://docs.anthropic.com/en/release-notes/overview";
 const ANTHROPIC_API_CHANGELOG = "https://docs.anthropic.com/en/api/release-notes";
 
-export async function scrapeAnthropic(): Promise<ScrapedUpdate[]> {
-  const updates: ScrapedUpdate[] = [];
+export async function scrapeAnthropic(): Promise<NormalizedUpdate[]> {
+  const updates: NormalizedUpdate[] = [];
 
   try {
     // Try the main release notes page
@@ -25,7 +26,8 @@ export async function scrapeAnthropic(): Promise<ScrapedUpdate[]> {
         (_, element) => {
           const $el = $(element);
           const title = $el.find("h2, h3, h4").first().text().trim();
-          const content = $el.find("p, ul").text().trim();
+          const contentHtml = $el.find("p, ul").html() || "";
+          const contentText = htmlToText(contentHtml) || $el.find("p, ul").text().trim();
           const dateText =
             $el.find("time, .date, [datetime]").attr("datetime") ||
             $el.find("time, .date, span").first().text().trim();
@@ -34,10 +36,11 @@ export async function scrapeAnthropic(): Promise<ScrapedUpdate[]> {
             updates.push({
               provider: "anthropic",
               title: title.slice(0, 200),
-              content: content.slice(0, 2000) || title,
               url: ANTHROPIC_CHANGELOG_URL,
-              category: categorizeUpdate(title, content),
-              publishedAt: dateText || new Date().toISOString(),
+              contentHtml: contentHtml.slice(0, 10000),
+              contentText: contentText.slice(0, 2000) || title,
+              category: categorizeUpdate(title, contentText),
+              publishedAt: parseDate(dateText),
               externalId: `anthropic-${Buffer.from(title).toString("base64").slice(0, 20)}`,
             });
           }
@@ -49,16 +52,18 @@ export async function scrapeAnthropic(): Promise<ScrapedUpdate[]> {
         $("h2, h3").each((_, header) => {
           const $header = $(header);
           const title = $header.text().trim();
-          const content = $header.nextUntil("h2, h3").text().trim();
+          const contentHtml = $header.nextUntil("h2, h3").html() || "";
+          const contentText = htmlToText(contentHtml) || $header.nextUntil("h2, h3").text().trim();
 
           if (title && title.length > 5 && !title.toLowerCase().includes("overview")) {
             updates.push({
               provider: "anthropic",
               title: title.slice(0, 200),
-              content: content.slice(0, 2000) || title,
               url: ANTHROPIC_CHANGELOG_URL,
-              category: categorizeUpdate(title, content),
-              publishedAt: new Date().toISOString(),
+              contentHtml: contentHtml.slice(0, 10000),
+              contentText: contentText.slice(0, 2000) || title,
+              category: categorizeUpdate(title, contentText),
+              publishedAt: parseDate(undefined),
               externalId: `anthropic-${Buffer.from(title).toString("base64").slice(0, 20)}`,
             });
           }
@@ -81,17 +86,19 @@ export async function scrapeAnthropic(): Promise<ScrapedUpdate[]> {
       $("h2, h3").each((_, header) => {
         const $header = $(header);
         const title = $header.text().trim();
-        const content = $header.nextUntil("h2, h3").text().trim();
+        const contentHtml = $header.nextUntil("h2, h3").html() || "";
+        const contentText = htmlToText(contentHtml) || $header.nextUntil("h2, h3").text().trim();
 
         // Check if it looks like a date (API changelog format)
         if (title.match(/\d{4}[-\/]\d{2}[-\/]\d{2}/) || title.match(/\w+ \d+, \d{4}/)) {
           updates.push({
             provider: "anthropic",
             title: `API Update: ${title}`,
-            content: content.slice(0, 2000) || "API changelog update",
             url: ANTHROPIC_API_CHANGELOG,
+            contentHtml: contentHtml.slice(0, 10000),
+            contentText: contentText.slice(0, 2000) || "API changelog update",
             category: "api_update",
-            publishedAt: title,
+            publishedAt: parseDate(title),
             externalId: `anthropic-api-${Buffer.from(title).toString("base64").slice(0, 20)}`,
           });
         }

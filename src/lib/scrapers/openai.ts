@@ -1,10 +1,11 @@
 import * as cheerio from "cheerio";
-import { ScrapedUpdate, categorizeUpdate } from "./types";
+import { NormalizedUpdate, categorizeUpdate } from "./types";
+import { htmlToText, parseDate } from "../scrape/utils";
 
 const OPENAI_CHANGELOG_URL = "https://platform.openai.com/docs/changelog";
 
-export async function scrapeOpenAI(): Promise<ScrapedUpdate[]> {
-  const updates: ScrapedUpdate[] = [];
+export async function scrapeOpenAI(): Promise<NormalizedUpdate[]> {
+  const updates: NormalizedUpdate[] = [];
 
   try {
     const response = await fetch(OPENAI_CHANGELOG_URL, {
@@ -30,19 +31,21 @@ export async function scrapeOpenAI(): Promise<ScrapedUpdate[]> {
         const title =
           $el.find("h2, h3, .title").first().text().trim() ||
           $el.find("strong").first().text().trim();
-        const content = $el.find("p, .description").text().trim();
+        const contentHtml = $el.find("p, .description").html() || "";
+        const contentText = htmlToText(contentHtml) || $el.find("p, .description").text().trim();
         const dateText =
           $el.find("time, .date, [datetime]").attr("datetime") ||
           $el.find("time, .date").text().trim();
 
-        if (title && content) {
+        if (title && contentText) {
           updates.push({
             provider: "openai",
             title: title.slice(0, 200),
-            content: content.slice(0, 2000),
             url: OPENAI_CHANGELOG_URL,
-            category: categorizeUpdate(title, content),
-            publishedAt: dateText || new Date().toISOString(),
+            contentHtml: contentHtml.slice(0, 10000),
+            contentText: contentText.slice(0, 2000),
+            category: categorizeUpdate(title, contentText),
+            publishedAt: parseDate(dateText),
             externalId: `openai-${Buffer.from(title).toString("base64").slice(0, 20)}`,
           });
         }
@@ -57,14 +60,16 @@ export async function scrapeOpenAI(): Promise<ScrapedUpdate[]> {
 
         $section.find("li, p").each((_, item) => {
           const text = $(item).text().trim();
+          const itemHtml = $(item).html() || "";
           if (text.length > 20) {
             updates.push({
               provider: "openai",
               title: text.slice(0, 150),
-              content: text,
               url: OPENAI_CHANGELOG_URL,
+              contentHtml: itemHtml,
+              contentText: text,
               category: categorizeUpdate(text, text),
-              publishedAt: dateHeader || new Date().toISOString(),
+              publishedAt: parseDate(dateHeader),
               externalId: `openai-${Buffer.from(text).toString("base64").slice(0, 20)}`,
             });
           }
