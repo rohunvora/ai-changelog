@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/db";
+import { db, schema, ensureDb } from "@/db";
 import { eq, desc, inArray } from "drizzle-orm";
 import { cookies } from "next/headers";
 
@@ -8,6 +8,7 @@ const ANON_ID_COOKIE = "anon_id";
 // GET /api/ideas - Get ideas (optionally filtered to user's bookmarks)
 export async function GET(request: NextRequest) {
   try {
+    await ensureDb();
     const { searchParams } = new URL(request.url);
     const savedOnly = searchParams.get("saved") === "true";
     const updateId = searchParams.get("updateId");

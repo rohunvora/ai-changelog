@@ -89,3 +89,67 @@ export function truncate(text: string, maxLength: number): string {
   return truncated + "...";
 }
 
+/**
+ * Generate ULID
+ */
+export function ulid(): string {
+  const { ulid: generateUlid } = require("ulid");
+  return generateUlid();
+}
+
+/**
+ * Acquire a distributed lock
+ */
+export async function acquireLock(lockName: string, ttlMs: number): Promise<boolean> {
+  const { db, schema } = await import("@/db");
+  const { eq } = await import("drizzle-orm");
+  
+  const now = Date.now();
+  
+  try {
+    const existing = await db
+      .select()
+      .from(schema.locks)
+      .where(eq(schema.locks.name, lockName))
+      .limit(1);
+    
+    if (existing.length > 0 && existing[0].expiresAt.getTime() > now) {
+      return false;
+    }
+    
+    await db
+      .insert(schema.locks)
+      .values({
+        name: lockName,
+        lockedAt: new Date(now),
+        expiresAt: new Date(now + ttlMs),
+      })
+      .onConflictDoUpdate({
+        target: schema.locks.name,
+        set: {
+          lockedAt: new Date(now),
+          expiresAt: new Date(now + ttlMs),
+        },
+      });
+    
+    return true;
+  } catch (error) {
+    console.error("Lock error:", error);
+    return false;
+  }
+}
+
+/**
+ * Release a distributed lock
+ */
+export async function releaseLock(lockName: string): Promise<void> {
+  const { db, schema } = await import("@/db");
+  const { eq } = await import("drizzle-orm");
+  
+  try {
+    await db.delete(schema.locks).where(eq(schema.locks.name, lockName));
+  } catch (error) {
+    console.error("Lock release error:", error);
+  }
+}
+

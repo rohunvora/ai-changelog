@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/db";
-import { desc, eq, and, sql, ne } from "drizzle-orm";
+import { db, schema, ensureDb } from "@/db";
+import { desc, eq, and, sql } from "drizzle-orm";
 import { ProviderKey, CategoryKey } from "@/lib/scrapers";
 
 // GET /api/updates - Get all updates with filtering
 export async function GET(request: NextRequest) {
   try {
+    // Initialize database if needed
+    await ensureDb();
     const { searchParams } = new URL(request.url);
     const provider = searchParams.get("provider") as ProviderKey | null;
     const category = searchParams.get("category") as CategoryKey | null;

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/db";
+import { db, schema, ensureDb } from "@/db";
 import { eq } from "drizzle-orm";
 import OpenAI from "openai";
 import { ulid } from "ulid";
@@ -76,7 +76,7 @@ interface IdeasResponse {
   ideas: StructuredIdea[];
 }
 
-const SYSTEM_PROMPT = `You are an expert product strategist and developer who specializes in turning AI capabilities into actionable product ideas.
+const SYSTEM_PROMPT = `You are an expert product strategist and developer who specializes in turning AI capabilities into actionable product ideas. 
 
 Given an AI update or announcement, generate 3-5 creative and practical app/tool ideas that leverage this new capability. Focus on:
 - Real problems that can be solved
@@ -93,6 +93,9 @@ Be specific and creative. Avoid generic "AI wrapper" ideas.`;
 // POST /api/ideas/generate - Generate ideas for an update
 export async function POST(request: NextRequest) {
   try {
+    // Initialize database if needed
+    await ensureDb();
+    
     const body = await request.json();
     const { updateId } = body;
 
@@ -158,7 +161,7 @@ export async function POST(request: NextRequest) {
 
     const responseText = completion.choices[0]?.message?.content || "{}";
     let parsedResponse: IdeasResponse;
-    
+
     try {
       parsedResponse = JSON.parse(responseText) as IdeasResponse;
     } catch (e) {

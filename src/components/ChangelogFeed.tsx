@@ -111,6 +111,13 @@ export function ChangelogFeed() {
               </p>
             </div>
             <Link
+              href="/leaderboard"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
+            >
+              <span className="text-base">🏆</span>
+              Leaderboard
+            </Link>
+            <Link
               href="/saved"
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
             >
@@ -119,7 +126,7 @@ export function ChangelogFeed() {
               </svg>
               Saved
             </Link>
-          </div>
+      </div>
 
           {/* Tabs */}
           <div className="flex items-center gap-6 border-t border-[var(--border)] -mb-px">
@@ -192,26 +199,26 @@ export function ChangelogFeed() {
         </div>
       </div>
 
-      {/* Content */}
+        {/* Content */}
       <main className="max-w-5xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
-        {loading ? (
-          <div className="space-y-4">
+          {loading ? (
+            <div className="space-y-4">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
+                <div
+                  key={i}
                 className="border border-[var(--border)] rounded-xl bg-[var(--background-secondary)] p-5 lg:p-6"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="skeleton h-6 w-20 rounded-full" />
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="skeleton h-6 w-20 rounded-full" />
                   <div className="skeleton h-5 w-24 rounded-full" />
-                </div>
+                  </div>
                 <div className="skeleton h-7 w-3/4 rounded mb-3" />
                 <div className="skeleton h-4 w-full rounded mb-2" />
-                <div className="skeleton h-4 w-2/3 rounded" />
-              </div>
-            ))}
-          </div>
-        ) : updates.length === 0 ? (
+                  <div className="skeleton h-4 w-2/3 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : updates.length === 0 ? (
           <div className="text-center py-16">
             {viewMode === "opportunities" ? (
               <>
@@ -236,32 +243,32 @@ export function ChangelogFeed() {
             ) : (
               <>
                 <div className="text-6xl mb-4">📭</div>
-                <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">
-                  No updates found
-                </h3>
-                <p className="text-sm text-[var(--foreground-secondary)] mb-6 max-w-md mx-auto">
+              <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">
+                No updates found
+              </h3>
+              <p className="text-sm text-[var(--foreground-secondary)] mb-6 max-w-md mx-auto">
                   {searchQuery || selectedProvider
                     ? "Try adjusting your filters"
                     : "Fetch updates to get started"}
-                </p>
+              </p>
                 {!searchQuery && !selectedProvider && (
-                  <button
-                    onClick={async () => {
-                      const res = await fetch("/api/scrape", { method: "POST" });
-                      const data = await res.json();
-                      alert(`Scraped ${data.scraped} updates, inserted ${data.inserted}`);
-                      window.location.reload();
-                    }}
-                    className="px-6 py-2.5 text-sm font-medium rounded-lg bg-[var(--accent)] text-white hover:bg-[var(--accent-secondary)] transition-colors"
-                  >
-                    Fetch Updates Now
-                  </button>
+                <button
+                  onClick={async () => {
+                    const res = await fetch("/api/scrape", { method: "POST" });
+                    const data = await res.json();
+                    alert(`Scraped ${data.scraped} updates, inserted ${data.inserted}`);
+                    window.location.reload();
+                  }}
+                  className="px-6 py-2.5 text-sm font-medium rounded-lg bg-[var(--accent)] text-white hover:bg-[var(--accent-secondary)] transition-colors"
+                >
+                  Fetch Updates Now
+                </button>
                 )}
               </>
-            )}
-          </div>
-        ) : (
-          <>
+              )}
+            </div>
+          ) : (
+            <>
             {viewMode === "opportunities" && (
               <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-[var(--accent)]/5 to-transparent border border-[var(--accent)]/20">
                 <p className="text-sm text-[var(--foreground-secondary)]">
@@ -273,41 +280,41 @@ export function ChangelogFeed() {
               </div>
             )}
 
-            <div className="space-y-4">
-              {updates.map((update, index) => (
-                <div
-                  key={update.id}
-                  className="animate-fade-in"
-                  style={{ animationDelay: `${Math.min(index, 10) * 50}ms` }}
-                >
+              <div className="space-y-4">
+                {updates.map((update, index) => (
+                  <div
+                    key={update.id}
+                    className="animate-fade-in"
+                    style={{ animationDelay: `${Math.min(index, 10) * 50}ms` }}
+                  >
                   <UpdateCard update={update} isOpportunity={viewMode === "opportunities"} />
-                </div>
-              ))}
-            </div>
-
-            {hasMore && (
-              <div className="mt-8 text-center">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  className="px-6 py-2.5 text-sm font-medium rounded-lg bg-[var(--background-secondary)] border border-[var(--border)] text-[var(--foreground-secondary)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)] disabled:opacity-50 transition-colors"
-                >
-                  {loadingMore ? (
-                    <span className="flex items-center gap-2">
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Loading...
-                    </span>
-                  ) : (
-                    `Load More (${total - updates.length} remaining)`
-                  )}
-                </button>
+                  </div>
+                ))}
               </div>
-            )}
-          </>
-        )}
+
+              {hasMore && (
+              <div className="mt-8 text-center">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="px-6 py-2.5 text-sm font-medium rounded-lg bg-[var(--background-secondary)] border border-[var(--border)] text-[var(--foreground-secondary)] hover:bg-[var(--background-tertiary)] hover:text-[var(--foreground)] disabled:opacity-50 transition-colors"
+                  >
+                    {loadingMore ? (
+                      <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Loading...
+                      </span>
+                    ) : (
+                      `Load More (${total - updates.length} remaining)`
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
       </main>
     </div>
   );

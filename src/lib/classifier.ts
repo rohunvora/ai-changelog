@@ -158,8 +158,9 @@ export async function classifyUpdate(
 
 /**
  * Fallback heuristic classification when no API key
+ * Also exported for use in seed/migration scripts
  */
-function heuristicClassify(title: string, content: string): ClassificationResult {
+export function heuristicClassify(title: string, content: string): ClassificationResult {
   const text = `${title} ${content}`.toLowerCase();
 
   // NEW_CAPABILITY indicators

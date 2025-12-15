@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, schema } from "@/db";
+import { db, schema, ensureDb } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { ulid } from "ulid";
@@ -27,6 +27,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureDb();
     const { id: ideaId } = await params;
     const body = await request.json();
     const { saved } = body;
@@ -61,7 +62,7 @@ export async function POST(
         .onConflictDoNothing(); // Ignore if already bookmarked
     } else {
       // Remove bookmark
-      await db
+    await db
         .delete(schema.ideaBookmarks)
         .where(
           and(
@@ -99,6 +100,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureDb();
     const { id: ideaId } = await params;
     
     if (!ideaId) {

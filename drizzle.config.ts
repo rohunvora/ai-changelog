@@ -3,9 +3,9 @@ import { defineConfig } from "drizzle-kit";
 export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
-  dialect: "sqlite",
+  dialect: "turso",
   dbCredentials: {
-    url: "./data/changelog.db",
+    url: process.env.TURSO_DATABASE_URL || "file:./data/changelog.db",
+    authToken: process.env.TURSO_AUTH_TOKEN,
   },
 });
-

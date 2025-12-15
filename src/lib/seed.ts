@@ -1,6 +1,7 @@
 import { db, schema } from "@/db";
 import { ulid } from "ulid";
 import { computeHash } from "./scrape/utils";
+import { heuristicClassify } from "./classifier";
 
 // Real, current AI updates as of December 2025
 const realUpdates = [
@@ -12,6 +13,11 @@ const realUpdates = [
     category: "new_model",
     publishedAt: "2025-12-10",
     externalId: "openai-gpt-5.2-release",
+    buildIdeas: [
+      "Autonomous code review agent that iterates until tests pass",
+      "Multi-step research assistant that writes entire reports",
+      "AI project manager that breaks down tasks and delegates"
+    ],
   },
   {
     provider: "openai",
@@ -21,6 +27,7 @@ const realUpdates = [
     category: "pricing",
     publishedAt: "2025-12-05",
     externalId: "openai-chatgpt-pro",
+    buildIdeas: [],
   },
   {
     provider: "openai",
@@ -30,6 +37,12 @@ const realUpdates = [
     category: "new_model",
     publishedAt: "2025-12-09",
     externalId: "openai-sora-release",
+    buildIdeas: [
+      "AI music video generator from lyrics",
+      "Product demo video creator from screenshots",
+      "Animated explainer video tool for educators",
+      "Social media content generator for brands"
+    ],
   },
   {
     provider: "anthropic",
@@ -39,6 +52,11 @@ const realUpdates = [
     category: "new_model",
     publishedAt: "2025-12-12",
     externalId: "anthropic-opus-4.5",
+    buildIdeas: [
+      "Legal document analyzer with case law reasoning",
+      "Scientific paper reviewer and critique generator",
+      "Complex debugging assistant for distributed systems"
+    ],
   },
   {
     provider: "anthropic",
@@ -48,6 +66,12 @@ const realUpdates = [
     category: "feature",
     publishedAt: "2025-10-29",
     externalId: "anthropic-computer-use",
+    buildIdeas: [
+      "QA automation that tests any web app visually",
+      "Data entry bot for legacy systems without APIs",
+      "Personal assistant that books appointments across sites",
+      "Automated expense report filler from receipts"
+    ],
   },
   {
     provider: "anthropic",
@@ -57,6 +81,11 @@ const realUpdates = [
     category: "feature",
     publishedAt: "2025-11-25",
     externalId: "anthropic-mcp",
+    buildIdeas: [
+      "Universal AI connector for any SaaS tool",
+      "Enterprise knowledge base that spans all company tools",
+      "IDE plugin that understands your entire codebase"
+    ],
   },
   {
     provider: "google",
@@ -66,6 +95,12 @@ const realUpdates = [
     category: "new_model",
     publishedAt: "2025-12-11",
     externalId: "google-gemini-2.0-flash",
+    buildIdeas: [
+      "Real-time visual translator with audio output",
+      "Interactive diagram generator from descriptions",
+      "Live tutoring app with instant visual explanations",
+      "Podcast host that generates accompanying images"
+    ],
   },
   {
     provider: "google",
@@ -75,6 +110,11 @@ const realUpdates = [
     category: "feature",
     publishedAt: "2025-12-08",
     externalId: "google-deep-research",
+    buildIdeas: [
+      "Competitive intelligence dashboard with daily reports",
+      "Academic literature review generator",
+      "Market research tool for startup founders"
+    ],
   },
   {
     provider: "google",
@@ -84,6 +124,12 @@ const realUpdates = [
     category: "feature",
     publishedAt: "2025-12-11",
     externalId: "google-project-astra",
+    buildIdeas: [
+      "AR navigation assistant for complex buildings",
+      "Real-time language translator with visual context",
+      "AI shopping companion that identifies products",
+      "Accessibility app for visually impaired users"
+    ],
   },
   {
     provider: "xai",
@@ -93,6 +139,11 @@ const realUpdates = [
     category: "new_model",
     publishedAt: "2025-12-01",
     externalId: "xai-grok-2-vision",
+    buildIdeas: [
+      "Meme analyzer with trending topic context",
+      "Screenshot-to-code converter with X community feedback",
+      "Real-time chart interpreter for traders"
+    ],
   },
   {
     provider: "xai",
@@ -102,6 +153,11 @@ const realUpdates = [
     category: "api_update",
     publishedAt: "2025-11-20",
     externalId: "xai-grok-api-public",
+    buildIdeas: [
+      "Edgy chatbot with current events knowledge",
+      "Content moderation tool with nuanced policies",
+      "Real-time news summarizer without delays"
+    ],
   },
   {
     provider: "perplexity",
@@ -111,6 +167,12 @@ const realUpdates = [
     category: "new_model",
     publishedAt: "2025-12-03",
     externalId: "perplexity-sonar-pro",
+    buildIdeas: [
+      "Fact-checking browser extension with sources",
+      "Research chatbot that cites everything",
+      "Due diligence tool for investors",
+      "Journalist research assistant with auto-citations"
+    ],
   },
   {
     provider: "cohere",
@@ -120,6 +182,11 @@ const realUpdates = [
     category: "new_model",
     publishedAt: "2025-08-15",
     externalId: "cohere-command-r-plus-08",
+    buildIdeas: [
+      "Internal knowledge base chatbot for enterprises",
+      "Customer support bot trained on documentation",
+      "Legal discovery tool with document citations"
+    ],
   },
   {
     provider: "cohere",
@@ -129,6 +196,11 @@ const realUpdates = [
     category: "new_model",
     publishedAt: "2025-11-01",
     externalId: "cohere-rerank-3.5",
+    buildIdeas: [
+      "E-commerce search that understands intent",
+      "Document retrieval system for law firms",
+      "Multi-language knowledge base search"
+    ],
   },
   {
     provider: "openai",
@@ -138,6 +210,12 @@ const realUpdates = [
     category: "new_model",
     publishedAt: "2025-12-05",
     externalId: "openai-o1-release",
+    buildIdeas: [
+      "Competitive programming assistant",
+      "Math tutor that shows its work step-by-step",
+      "Bug finder that reasons through code paths",
+      "Scientific hypothesis generator"
+    ],
   },
   {
     provider: "openai",
@@ -147,6 +225,12 @@ const realUpdates = [
     category: "api_update",
     publishedAt: "2025-10-01",
     externalId: "openai-realtime-api",
+    buildIdeas: [
+      "AI phone receptionist for small businesses",
+      "Language learning partner with natural conversation",
+      "Therapy companion with emotional awareness",
+      "Podcast co-host that responds in real-time"
+    ],
   },
   {
     provider: "google",
@@ -156,6 +240,12 @@ const realUpdates = [
     category: "feature",
     publishedAt: "2025-09-26",
     externalId: "google-notebooklm-audio",
+    buildIdeas: [
+      "Textbook-to-podcast converter for students",
+      "Company memo summarizer as morning briefings",
+      "Research paper explainer for non-experts",
+      "Audiobook creator from any document"
+    ],
   },
   {
     provider: "anthropic",
@@ -165,6 +255,11 @@ const realUpdates = [
     category: "new_model",
     publishedAt: "2025-06-20",
     externalId: "anthropic-claude-35-sonnet",
+    buildIdeas: [
+      "Full-stack app generator from specifications",
+      "Code migration tool between frameworks",
+      "Technical documentation generator from code"
+    ],
   },
 ];
 
@@ -184,6 +279,11 @@ export async function seedDatabase() {
       const publishedAt = new Date(update.publishedAt).getTime();
       const hash = computeHash(update.title, update.url, publishedAt, update.content);
       
+      // Classify the update - if it has build ideas, it's a capability unlock
+      const hasIdeas = update.buildIdeas && update.buildIdeas.length > 0;
+      const classification = heuristicClassify(update.title, update.content);
+      const unlockType = hasIdeas ? "new_capability" : classification.unlockType;
+      
       await db.insert(schema.updates).values({
         id: ulid(),
         provider: update.provider,
@@ -194,11 +294,19 @@ export async function seedDatabase() {
         contentMd: update.content,
         raw: "",
         hash,
+        unlockType,
+        capability: classification.capability,
+        enablesBuilding: hasIdeas 
+          ? JSON.stringify(update.buildIdeas) 
+          : null,
         publishedAt: new Date(publishedAt),
         scrapedAt: new Date(now),
         externalId: update.externalId,
       });
-      console.log(`  ✓ Added: ${update.title.slice(0, 60)}...`);
+      
+      const typeEmoji = unlockType === "new_capability" ? "🔓" : 
+                        unlockType === "improvement" ? "📈" : "⚙️";
+      console.log(`  ${typeEmoji} Added: ${update.title.slice(0, 55)}...`);
     } catch (error) {
       console.log(`  - Error: ${update.title.slice(0, 40)}...`, error);
     }

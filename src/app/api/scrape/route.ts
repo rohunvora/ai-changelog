@@ -13,9 +13,9 @@ const LOCK_TTL_MS = 5 * 60 * 1000; // 5 minutes
  * Check if the request is authorized (for cron or manual triggers).
  */
 function isAuthorized(request: NextRequest): boolean {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  
+    const authHeader = request.headers.get("authorization");
+    const cronSecret = process.env.CRON_SECRET;
+
   // Skip auth in development or if no secret is set
   if (!cronSecret || process.env.NODE_ENV !== "production") {
     return true;
@@ -86,11 +86,11 @@ async function processUpdates(updates: NormalizedUpdate[]): Promise<{
   updated: number;
   skipped: number;
 }> {
-  let inserted = 0;
+    let inserted = 0;
   let updated = 0;
-  let skipped = 0;
-  
-  for (const update of updates) {
+    let skipped = 0;
+
+    for (const update of updates) {
     const hash = computeHash(
       update.title,
       update.url,
@@ -103,18 +103,18 @@ async function processUpdates(updates: NormalizedUpdate[]): Promise<{
     
     try {
       // Check if update exists
-      const existing = await db
-        .select()
-        .from(schema.updates)
+        const existing = await db
+          .select()
+          .from(schema.updates)
         .where(
           and(
             eq(schema.updates.provider, update.provider),
             eq(schema.updates.url, update.url)
           )
         )
-        .limit(1);
-      
-      if (existing.length > 0) {
+          .limit(1);
+
+        if (existing.length > 0) {
         // Update only if content changed
         if (existing[0].hash !== hash) {
           await db
@@ -142,12 +142,12 @@ async function processUpdates(updates: NormalizedUpdate[]): Promise<{
         );
         
         // Insert new update with classification
-        await db.insert(schema.updates).values({
+      await db.insert(schema.updates).values({
           id: ulid(),
-          provider: update.provider,
-          title: update.title,
-          url: update.url,
-          category: update.category,
+        provider: update.provider,
+        title: update.title,
+        url: update.url,
+        category: update.category,
           contentText: update.contentText,
           contentMd: contentMd,
           raw: update.contentHtml,
@@ -159,10 +159,10 @@ async function processUpdates(updates: NormalizedUpdate[]): Promise<{
             : null,
           publishedAt: new Date(update.publishedAt),
           scrapedAt: new Date(now),
-          externalId: update.externalId,
-        });
-        inserted++;
-      }
+        externalId: update.externalId,
+      });
+      inserted++;
+    }
     } catch (error) {
       console.error(`Error processing update "${update.title}":`, error);
       skipped++;
@@ -230,7 +230,7 @@ export async function GET(request: NextRequest) {
     if (authHeader) {
       if (!isAuthorized(request)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+  }
       
       const result = await runScrapeWithLock();
       
