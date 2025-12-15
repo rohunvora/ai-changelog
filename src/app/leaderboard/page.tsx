@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, subDays, isAfter } from "date-fns";
 
 // Types
 interface LeaderboardEntry {
@@ -38,8 +38,20 @@ interface LeaderboardResponse {
   hasMore: boolean;
 }
 
+interface CategoryStats {
+  category: string;
+  count: number;
+  totalMRR: number;
+  avgMRR: number;
+  avgVibecoded: number;
+  highConfidenceCount: number;
+  topProduct: string;
+}
+
 type SortKey = "mrr" | "vibecodedPercent" | "confidence" | "claimDate";
 type SortDir = "asc" | "desc";
+type ViewMode = "table" | "analytics" | "insights";
+type DateRange = "all" | "30d" | "90d" | "1yr";
 
 // Utility functions
 function formatMRR(cents: number): string {
@@ -58,6 +70,16 @@ function formatCategory(cat: string | undefined): string {
   return cat.replace(/_/g, " ");
 }
 
+function getDateCutoff(range: DateRange): Date | null {
+  const now = new Date();
+  switch (range) {
+    case "30d": return subDays(now, 30);
+    case "90d": return subDays(now, 90);
+    case "1yr": return subDays(now, 365);
+    default: return null;
+  }
+}
+
 // Sort indicator component
 function SortIndicator({ active, dir }: { active: boolean; dir: SortDir }) {
   return (
@@ -70,19 +92,14 @@ function SortIndicator({ active, dir }: { active: boolean; dir: SortDir }) {
 // Confidence badge component with proper ARIA
 function ConfidenceBadge({ level }: { level: "high" | "medium" | "low" }) {
   const config = {
-    high: { icon: "✓", label: "High confidence", ariaLabel: "High confidence - verified by multiple sources" },
+    high: { icon: "✓", label: "High", ariaLabel: "High confidence - verified by multiple sources" },
     medium: { icon: "◐", label: "Medium", ariaLabel: "Medium confidence - self-reported with some verification" },
     low: { icon: "○", label: "Low", ariaLabel: "Low confidence - single source, unverified" },
   };
   const { icon, label, ariaLabel } = config[level];
   
   return (
-    <span 
-      className={`confidence-badge ${level}`} 
-      role="status"
-      aria-label={ariaLabel}
-      title={ariaLabel}
-    >
+    <span className={`confidence-badge ${level}`} role="status" aria-label={ariaLabel} title={ariaLabel}>
       <span aria-hidden="true">{icon}</span> {label}
     </span>
   );
@@ -141,35 +158,23 @@ function ExpandedRow({ entry }: { entry: LeaderboardEntry }) {
           <div className="space-y-4">
             {entry.founder.vibecodedClaim && (
               <div>
-                <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">
-                  💬 Vibecoding Claim
-                </h4>
+                <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">💬 Vibecoding Claim</h4>
                 <blockquote className="text-base text-[var(--foreground)] italic border-l-2 border-[var(--accent)] pl-3">
                   "{entry.founder.vibecodedClaim}"
                 </blockquote>
                 {entry.founder.vibecodedSource && (
-                  <a 
-                    href={entry.founder.vibecodedSource}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 mt-2 text-sm text-[var(--accent)] hover:underline"
-                  >
+                  <a href={entry.founder.vibecodedSource} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-2 text-sm text-[var(--accent)] hover:underline">
                     View original source →
                   </a>
                 )}
               </div>
             )}
-            
             {entry.founder.toolsUsed && entry.founder.toolsUsed.length > 0 && (
               <div>
-                <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">
-                  🛠️ AI Tools Used
-                </h4>
-                <ul className="flex flex-wrap gap-2" role="list" aria-label="Tools used to build this product">
+                <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">🛠️ AI Tools Used</h4>
+                <ul className="flex flex-wrap gap-2" role="list">
                   {entry.founder.toolsUsed.map((tool) => (
-                    <li key={tool} className="tool-badge">
-                      {tool}
-                    </li>
+                    <li key={tool} className="tool-badge">{tool}</li>
                   ))}
                 </ul>
               </div>
@@ -179,53 +184,32 @@ function ExpandedRow({ entry }: { entry: LeaderboardEntry }) {
           {/* Center: Stats */}
           <div className="space-y-4">
             <div>
-              <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">
-                📊 Revenue Details
-              </h4>
+              <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">📊 Revenue Details</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-lg bg-[var(--background-tertiary)] border border-[var(--border)]">
-                  <div className="text-xl font-bold text-[var(--confidence-high)]">
-                    {formatMRR(entry.claim.mrr)}
-                  </div>
+                  <div className="text-xl font-bold text-[var(--confidence-high)]">{formatMRR(entry.claim.mrr)}</div>
                   <div className="text-sm text-[var(--foreground-secondary)]">Monthly Revenue</div>
                 </div>
                 <div className="p-3 rounded-lg bg-[var(--background-tertiary)] border border-[var(--border)]">
-                  <div className="text-xl font-bold text-[var(--foreground)]">
-                    {entry.claim.arr ? formatMRR(entry.claim.arr) : formatMRR(entry.claim.mrr * 12)}
-                  </div>
+                  <div className="text-xl font-bold text-[var(--foreground)]">{entry.claim.arr ? formatMRR(entry.claim.arr) : formatMRR(entry.claim.mrr * 12)}</div>
                   <div className="text-sm text-[var(--foreground-secondary)]">Annual Revenue</div>
                 </div>
               </div>
             </div>
-            
             <div>
-              <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">
-                🔍 Verification Status
-              </h4>
+              <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">🔍 Verification Status</h4>
               <ul className="space-y-2" role="list">
                 <li className="flex items-center gap-2 text-sm">
-                  <span className={entry.claim.isStripeVerified ? "text-[var(--confidence-high)]" : "text-[var(--foreground-tertiary)]"} aria-hidden="true">
-                    {entry.claim.isStripeVerified ? "✓" : "○"}
-                  </span>
-                  <span className={entry.claim.isStripeVerified ? "text-[var(--foreground)]" : "text-[var(--foreground-tertiary)]"}>
-                    Stripe Verified {entry.claim.isStripeVerified ? "" : "(not verified)"}
-                  </span>
+                  <span className={entry.claim.isStripeVerified ? "text-[var(--confidence-high)]" : "text-[var(--foreground-tertiary)]"} aria-hidden="true">{entry.claim.isStripeVerified ? "✓" : "○"}</span>
+                  <span className={entry.claim.isStripeVerified ? "text-[var(--foreground)]" : "text-[var(--foreground-tertiary)]"}>Stripe Verified</span>
                 </li>
                 <li className="flex items-center gap-2 text-sm">
-                  <span className={entry.claim.isOpenStartup ? "text-[var(--confidence-high)]" : "text-[var(--foreground-tertiary)]"} aria-hidden="true">
-                    {entry.claim.isOpenStartup ? "✓" : "○"}
-                  </span>
-                  <span className={entry.claim.isOpenStartup ? "text-[var(--foreground)]" : "text-[var(--foreground-tertiary)]"}>
-                    Open Startup Dashboard {entry.claim.isOpenStartup ? "" : "(not public)"}
-                  </span>
+                  <span className={entry.claim.isOpenStartup ? "text-[var(--confidence-high)]" : "text-[var(--foreground-tertiary)]"} aria-hidden="true">{entry.claim.isOpenStartup ? "✓" : "○"}</span>
+                  <span className={entry.claim.isOpenStartup ? "text-[var(--foreground)]" : "text-[var(--foreground-tertiary)]"}>Open Startup Dashboard</span>
                 </li>
                 <li className="flex items-center gap-2 text-sm">
-                  <span className={entry.claim.hasMultipleSources ? "text-[var(--confidence-high)]" : "text-[var(--foreground-tertiary)]"} aria-hidden="true">
-                    {entry.claim.hasMultipleSources ? "✓" : "○"}
-                  </span>
-                  <span className={entry.claim.hasMultipleSources ? "text-[var(--foreground)]" : "text-[var(--foreground-tertiary)]"}>
-                    Multiple Sources {entry.claim.hasMultipleSources ? "" : "(single source)"}
-                  </span>
+                  <span className={entry.claim.hasMultipleSources ? "text-[var(--confidence-high)]" : "text-[var(--foreground-tertiary)]"} aria-hidden="true">{entry.claim.hasMultipleSources ? "✓" : "○"}</span>
+                  <span className={entry.claim.hasMultipleSources ? "text-[var(--foreground)]" : "text-[var(--foreground-tertiary)]"}>Multiple Sources</span>
                 </li>
               </ul>
             </div>
@@ -234,61 +218,148 @@ function ExpandedRow({ entry }: { entry: LeaderboardEntry }) {
           {/* Right: Links */}
           <div className="space-y-4">
             <div>
-              <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">
-                🔗 Links
-              </h4>
-              <nav className="space-y-2" aria-label="External links for this product">
+              <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">🔗 Links</h4>
+              <nav className="space-y-2">
                 {entry.founder.productUrl && (
-                  <a
-                    href={entry.founder.productUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-base text-[var(--accent)] hover:text-[var(--accent-secondary)] hover:underline transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                    </svg>
-                    <span>{entry.founder.productUrl.replace(/https?:\/\/(www\.)?/, "").split("/")[0]}</span>
-                    <span className="sr-only">(opens in new tab)</span>
+                  <a href={entry.founder.productUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-base text-[var(--accent)] hover:underline">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>
+                    {entry.founder.productUrl.replace(/https?:\/\/(www\.)?/, "").split("/")[0]}
                   </a>
                 )}
                 {entry.founder.twitterHandle && (
-                  <a
-                    href={`https://twitter.com/${entry.founder.twitterHandle.replace("@", "")}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-base text-[var(--accent)] hover:text-[var(--accent-secondary)] hover:underline transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-                    </svg>
-                    <span>{entry.founder.twitterHandle}</span>
-                    <span className="sr-only">(opens in new tab)</span>
+                  <a href={`https://twitter.com/${entry.founder.twitterHandle.replace("@", "")}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-base text-[var(--accent)] hover:underline">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+                    {entry.founder.twitterHandle}
                   </a>
                 )}
               </nav>
             </div>
-            
             {entry.claim.confidenceReason && (
               <div>
-                <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">
-                  📝 Data Note
-                </h4>
-                <p className="text-sm text-[var(--foreground-secondary)]">
-                  {entry.claim.confidenceReason}
-                </p>
+                <h4 className="text-sm font-semibold text-[var(--foreground-secondary)] mb-2">📝 Data Note</h4>
+                <p className="text-sm text-[var(--foreground-secondary)]">{entry.claim.confidenceReason}</p>
               </div>
             )}
-            
-            <div className="pt-2">
-              <p className="text-xs text-[var(--foreground-tertiary)]">
-                Claimed: {formatDistanceToNow(new Date(entry.claim.claimDate), { addSuffix: true })}
-              </p>
-            </div>
+            <p className="text-xs text-[var(--foreground-tertiary)] pt-2">
+              Claimed: {formatDistanceToNow(new Date(entry.claim.claimDate), { addSuffix: true })}
+            </p>
           </div>
         </div>
       </td>
     </tr>
+  );
+}
+
+// Category Analytics Card
+function CategoryAnalyticsCard({ stats, onClick }: { stats: CategoryStats; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="p-4 rounded-lg bg-[var(--background-secondary)] border border-[var(--border)] hover:border-[var(--border-hover)] transition-all text-left w-full"
+    >
+      <div className="flex items-start justify-between mb-3">
+        <CategoryBadge category={stats.category} />
+        <span className="text-xs text-[var(--foreground-tertiary)]">{stats.count} products</span>
+      </div>
+      <div className="grid grid-cols-2 gap-4 text-sm">
+        <div>
+          <div className="text-[var(--foreground-tertiary)]">Total MRR</div>
+          <div className="text-lg font-bold text-[var(--confidence-high)]">{formatMRR(stats.totalMRR)}</div>
+        </div>
+        <div>
+          <div className="text-[var(--foreground-tertiary)]">Avg MRR</div>
+          <div className="text-lg font-bold text-[var(--foreground)]">{formatMRR(stats.avgMRR)}</div>
+        </div>
+        <div>
+          <div className="text-[var(--foreground-tertiary)]">Avg Vibecoded</div>
+          <div className="font-semibold text-[var(--accent)]">{stats.avgVibecoded}%</div>
+        </div>
+        <div>
+          <div className="text-[var(--foreground-tertiary)]">High Confidence</div>
+          <div className="font-semibold text-[var(--confidence-high)]">{stats.highConfidenceCount}</div>
+        </div>
+      </div>
+      <div className="mt-3 pt-3 border-t border-[var(--border)]">
+        <div className="text-xs text-[var(--foreground-tertiary)]">Top product</div>
+        <div className="text-sm font-medium text-[var(--foreground)] truncate">{stats.topProduct}</div>
+      </div>
+    </button>
+  );
+}
+
+// Auto-generated Insights Panel
+function InsightsPanel({ data, categoryStats }: { data: LeaderboardEntry[]; categoryStats: CategoryStats[] }) {
+  const insights = useMemo(() => {
+    const result: string[] = [];
+    
+    // Top performer
+    const top = data[0];
+    if (top) {
+      result.push(`🏆 **${top.founder.productName}** leads with ${formatMRR(top.claim.mrr)} MRR, built ${top.founder.vibecodedPercent || "largely"}% with AI tools like ${top.founder.toolsUsed?.slice(0, 2).join(", ") || "GPT/Cursor"}.`);
+    }
+    
+    // Best performing category
+    const topCat = [...categoryStats].sort((a, b) => b.totalMRR - a.totalMRR)[0];
+    if (topCat) {
+      result.push(`📊 **${formatCategory(topCat.category)}** is the highest-earning category (${formatMRR(topCat.totalMRR)} total MRR, ${topCat.count} products).`);
+    }
+    
+    // Most vibecoded category
+    const mostVibecoded = [...categoryStats].sort((a, b) => b.avgVibecoded - a.avgVibecoded)[0];
+    if (mostVibecoded && mostVibecoded.avgVibecoded > 0) {
+      result.push(`🤖 **${formatCategory(mostVibecoded.category)}** has the highest AI code percentage (avg ${mostVibecoded.avgVibecoded}%).`);
+    }
+    
+    // Common tools
+    const toolCounts: Record<string, number> = {};
+    data.forEach(e => e.founder.toolsUsed?.forEach(t => { toolCounts[t] = (toolCounts[t] || 0) + 1; }));
+    const topTools = Object.entries(toolCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    if (topTools.length > 0) {
+      result.push(`🛠️ Most used tools: ${topTools.map(([t, c]) => `**${t}** (${c})`).join(", ")}.`);
+    }
+    
+    // Solo developers vs teams
+    const soloDevs = data.filter(e => e.founder.vibecodedPercent && e.founder.vibecodedPercent >= 90);
+    if (soloDevs.length > 0) {
+      const soloMRR = soloDevs.reduce((s, e) => s + e.claim.mrr, 0);
+      result.push(`👤 ${soloDevs.length} products are 90%+ vibecoded (solo devs), generating ${formatMRR(soloMRR)} combined MRR.`);
+    }
+    
+    // High confidence products
+    const highConf = data.filter(e => e.claim.confidence === "high");
+    if (highConf.length > 0) {
+      result.push(`✓ ${highConf.length} products (${Math.round(highConf.length / data.length * 100)}%) have high-confidence revenue claims.`);
+    }
+    
+    // Gap analysis
+    const categoriesWithProducts = new Set(data.map(e => e.founder.category).filter(Boolean));
+    const potentialGaps = ["legal", "healthcare", "finance", "education", "real_estate"];
+    const gaps = potentialGaps.filter(g => !categoriesWithProducts.has(g));
+    if (gaps.length > 0) {
+      result.push(`💡 **Potential gaps**: No vibecoded products found in ${gaps.map(g => formatCategory(g)).join(", ")}.`);
+    }
+    
+    // Recency
+    const recent = data.filter(e => isAfter(new Date(e.claim.claimDate), subDays(new Date(), 90)));
+    const stale = data.filter(e => !isAfter(new Date(e.claim.claimDate), subDays(new Date(), 365)));
+    result.push(`📅 ${recent.length} claims from last 90 days; ${stale.length} claims are over 1 year old (may be outdated).`);
+    
+    return result;
+  }, [data, categoryStats]);
+  
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold text-[var(--foreground)]">📈 Auto-Generated Insights</h2>
+      <div className="grid gap-3">
+        {insights.map((insight, i) => (
+          <div key={i} className="p-4 rounded-lg bg-[var(--background-secondary)] border border-[var(--border)]">
+            <p className="text-base text-[var(--foreground-secondary)]" dangerouslySetInnerHTML={{ 
+              __html: insight.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[var(--foreground)]">$1</strong>') 
+            }} />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -302,6 +373,8 @@ export default function LeaderboardPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [confidenceFilter, setConfidenceFilter] = useState<string>("all");
+  const [dateRange, setDateRange] = useState<DateRange>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [showAbout, setShowAbout] = useState(false);
 
   // Fetch data
@@ -325,24 +398,34 @@ export default function LeaderboardPage() {
   const categories = useMemo(() => {
     const cats = new Set<string>();
     data.forEach((entry) => {
-      if (entry.founder.category) {
-        cats.add(entry.founder.category);
-      }
+      if (entry.founder.category) cats.add(entry.founder.category);
     });
     return Array.from(cats).sort();
+  }, [data]);
+
+  // Get all tools
+  const allTools = useMemo(() => {
+    const tools = new Set<string>();
+    data.forEach((entry) => {
+      entry.founder.toolsUsed?.forEach(t => tools.add(t.toLowerCase()));
+    });
+    return Array.from(tools).sort();
   }, [data]);
 
   // Filter and sort data
   const filteredData = useMemo(() => {
     let result = [...data];
     
+    // Enhanced search: name, product, category, tools, claims
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (entry) =>
-          entry.founder.productName.toLowerCase().includes(query) ||
-          entry.founder.name.toLowerCase().includes(query) ||
-          (entry.founder.twitterHandle?.toLowerCase().includes(query) ?? false)
+      result = result.filter((entry) =>
+        entry.founder.productName.toLowerCase().includes(query) ||
+        entry.founder.name.toLowerCase().includes(query) ||
+        (entry.founder.twitterHandle?.toLowerCase().includes(query) ?? false) ||
+        (entry.founder.category?.toLowerCase().includes(query) ?? false) ||
+        (entry.founder.vibecodedClaim?.toLowerCase().includes(query) ?? false) ||
+        (entry.founder.toolsUsed?.some(t => t.toLowerCase().includes(query)) ?? false)
       );
     }
     
@@ -354,9 +437,15 @@ export default function LeaderboardPage() {
       result = result.filter((entry) => entry.claim.confidence === confidenceFilter);
     }
     
+    // Date range filter
+    const cutoff = getDateCutoff(dateRange);
+    if (cutoff) {
+      result = result.filter((entry) => isAfter(new Date(entry.claim.claimDate), cutoff));
+    }
+    
     result.sort((a, b) => {
-      let aVal: number | string;
-      let bVal: number | string;
+      let aVal: number;
+      let bVal: number;
       
       switch (sortKey) {
         case "mrr":
@@ -381,71 +470,85 @@ export default function LeaderboardPage() {
           bVal = b.claim.mrr;
       }
       
-      if (sortDir === "asc") {
-        return aVal > bVal ? 1 : -1;
-      }
-      return aVal < bVal ? 1 : -1;
+      return sortDir === "asc" ? aVal - bVal : bVal - aVal;
     });
     
     return result;
-  }, [data, searchQuery, categoryFilter, confidenceFilter, sortKey, sortDir]);
+  }, [data, searchQuery, categoryFilter, confidenceFilter, dateRange, sortKey, sortDir]);
+
+  // Category statistics
+  const categoryStats = useMemo((): CategoryStats[] => {
+    const statsMap = new Map<string, { entries: LeaderboardEntry[] }>();
+    
+    filteredData.forEach(entry => {
+      const cat = entry.founder.category || "uncategorized";
+      if (!statsMap.has(cat)) {
+        statsMap.set(cat, { entries: [] });
+      }
+      statsMap.get(cat)!.entries.push(entry);
+    });
+    
+    return Array.from(statsMap.entries()).map(([category, { entries }]) => {
+      const totalMRR = entries.reduce((s, e) => s + e.claim.mrr, 0);
+      const vibecodedEntries = entries.filter(e => e.founder.vibecodedPercent);
+      const avgVibecoded = vibecodedEntries.length > 0
+        ? Math.round(vibecodedEntries.reduce((s, e) => s + (e.founder.vibecodedPercent || 0), 0) / vibecodedEntries.length)
+        : 0;
+      const topEntry = [...entries].sort((a, b) => b.claim.mrr - a.claim.mrr)[0];
+      
+      return {
+        category,
+        count: entries.length,
+        totalMRR,
+        avgMRR: Math.round(totalMRR / entries.length),
+        avgVibecoded,
+        highConfidenceCount: entries.filter(e => e.claim.confidence === "high").length,
+        topProduct: topEntry?.founder.productName || "—",
+      };
+    }).sort((a, b) => b.totalMRR - a.totalMRR);
+  }, [filteredData]);
 
   // Toggle row expansion
   const toggleExpanded = useCallback((id: string) => {
     setExpandedRows((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
 
-  // Handle sort with keyboard support
+  // Handle sort
   const handleSort = useCallback((key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
+    if (sortKey === key) setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("desc"); }
   }, [sortKey]);
 
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent, id: string) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      toggleExpanded(id);
-    }
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleExpanded(id); }
   }, [toggleExpanded]);
 
-  // Calculate stats
+  // Stats
   const stats = useMemo(() => {
     const totalMRR = filteredData.reduce((sum, e) => sum + e.claim.mrr, 0);
-    const avgVibecoded = filteredData.length > 0
-      ? Math.round(filteredData.reduce((sum, e) => sum + (e.founder.vibecodedPercent || 0), 0) / filteredData.length)
+    const vibecodedEntries = filteredData.filter(e => e.founder.vibecodedPercent);
+    const avgVibecoded = vibecodedEntries.length > 0
+      ? Math.round(vibecodedEntries.reduce((sum, e) => sum + (e.founder.vibecodedPercent || 0), 0) / vibecodedEntries.length)
       : 0;
     const highConfidence = filteredData.filter((e) => e.claim.confidence === "high").length;
     return { totalMRR, avgVibecoded, highConfidence, total: filteredData.length };
   }, [filteredData]);
 
-  // Export to CSV
+  // Export CSV
   const exportCSV = useCallback(() => {
-    const headers = ["Rank", "Product", "Founder", "Category", "MRR ($)", "ARR ($)", "Vibecoded %", "Confidence", "Twitter", "Website", "Source", "Claim Date"];
+    const headers = ["Rank", "Product", "Founder", "Category", "MRR ($)", "ARR ($)", "Vibecoded %", "Confidence", "Twitter", "Website", "Source", "Tools", "Claim Date"];
     const rows = filteredData.map((entry, i) => [
-      i + 1,
-      entry.founder.productName,
-      entry.founder.name,
-      entry.founder.category || "",
-      entry.claim.mrr / 100,
-      (entry.claim.arr || entry.claim.mrr * 12) / 100,
-      entry.founder.vibecodedPercent || "",
-      entry.claim.confidence,
-      entry.founder.twitterHandle || "",
-      entry.founder.productUrl || "",
-      entry.founder.vibecodedSource || "",
+      i + 1, entry.founder.productName, entry.founder.name, entry.founder.category || "",
+      entry.claim.mrr / 100, (entry.claim.arr || entry.claim.mrr * 12) / 100,
+      entry.founder.vibecodedPercent || "", entry.claim.confidence,
+      entry.founder.twitterHandle || "", entry.founder.productUrl || "",
+      entry.founder.vibecodedSource || "", entry.founder.toolsUsed?.join("; ") || "",
       entry.claim.claimDate,
     ]);
     
@@ -461,49 +564,63 @@ export default function LeaderboardPage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      {/* Skip to main content link */}
-      <a href="#main-content" className="skip-link">
-        Skip to main content
-      </a>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       
       {/* Header */}
       <header className="sticky top-0 z-20 glass border-b border-[var(--border)]" role="banner">
         <div className="max-w-7xl mx-auto px-4 lg:px-6">
           <div className="flex items-center justify-between py-3">
             <div className="flex items-center gap-4 lg:gap-6">
-              <Link 
-                href="/" 
-                className="text-lg font-bold text-[var(--foreground)] hover:text-[var(--accent)] transition-colors"
-                aria-label="Vibecoded Leaderboard - Home"
-              >
+              <Link href="/" className="text-lg font-bold text-[var(--foreground)] hover:text-[var(--accent)] transition-colors">
                 🏆 Vibecoded Leaderboard
               </Link>
               
-              {/* Search */}
+              {/* Search - Enhanced */}
               <div className="relative hidden md:block">
-                <label htmlFor="search" className="sr-only">Search products or founders</label>
+                <label htmlFor="search" className="sr-only">Search products, founders, categories, or tools</label>
                 <input
                   id="search"
                   type="search"
-                  placeholder="Search products or founders..."
+                  placeholder="Search products, categories, tools..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-64 px-3 py-2 pl-10 text-base bg-[var(--background-secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)] focus:ring-opacity-20 text-[var(--foreground)] placeholder:text-[var(--foreground-tertiary)]"
+                  className="w-72 px-3 py-2 pl-10 text-base bg-[var(--background-secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)] focus:ring-opacity-20 text-[var(--foreground)] placeholder:text-[var(--foreground-tertiary)]"
                 />
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-tertiary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-tertiary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
             </div>
             
             <div className="flex items-center gap-2 lg:gap-3">
+              {/* View Mode Toggle */}
+              <div className="hidden sm:flex items-center gap-1 p-1 bg-[var(--background-secondary)] rounded-lg border border-[var(--border)]">
+                {[
+                  { mode: "table" as ViewMode, icon: "≡", label: "Table" },
+                  { mode: "analytics" as ViewMode, icon: "📊", label: "Analytics" },
+                  { mode: "insights" as ViewMode, icon: "💡", label: "Insights" },
+                ].map(({ mode, icon, label }) => (
+                  <button
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                      viewMode === mode
+                        ? "bg-[var(--accent)] text-white"
+                        : "text-[var(--foreground-secondary)] hover:text-[var(--foreground)]"
+                    }`}
+                    aria-pressed={viewMode === mode}
+                  >
+                    <span aria-hidden="true">{icon}</span> {label}
+                  </button>
+                ))}
+              </div>
+              
               <button
                 onClick={() => setShowAbout(!showAbout)}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm text-[var(--foreground-secondary)] hover:text-[var(--foreground)] bg-[var(--background-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--background-tertiary)] transition-colors"
                 aria-expanded={showAbout}
-                aria-controls="about-section"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="hidden sm:inline">About</span>
@@ -511,17 +628,13 @@ export default function LeaderboardPage() {
               <button
                 onClick={exportCSV}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm text-[var(--foreground-secondary)] hover:text-[var(--foreground)] bg-[var(--background-secondary)] border border-[var(--border)] rounded-lg hover:bg-[var(--background-tertiary)] transition-colors"
-                aria-label="Export leaderboard data as CSV file"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                <span className="hidden sm:inline">Export CSV</span>
+                <span className="hidden sm:inline">Export</span>
               </button>
-              <Link
-                href="/"
-                className="px-3 py-2 text-sm text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
-              >
+              <Link href="/" className="px-3 py-2 text-sm text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors">
                 ← Changelog
               </Link>
             </div>
@@ -531,17 +644,11 @@ export default function LeaderboardPage() {
 
       {/* About Section */}
       {showAbout && (
-        <section 
-          id="about-section"
-          className="bg-[var(--background-secondary)] border-b border-[var(--border)] py-6"
-          aria-label="About this leaderboard"
-        >
+        <section id="about-section" className="bg-[var(--background-secondary)] border-b border-[var(--border)] py-6">
           <div className="max-w-7xl mx-auto px-4 lg:px-6">
             <div className="grid md:grid-cols-2 gap-6">
               <div>
-                <h2 className="text-lg font-bold text-[var(--foreground)] mb-3">
-                  What is "Vibecoded"?
-                </h2>
+                <h2 className="text-lg font-bold text-[var(--foreground)] mb-3">What is "Vibecoded"?</h2>
                 <p className="text-base text-[var(--foreground-secondary)] mb-4">
                   <strong>"Vibecoded"</strong> refers to software built primarily using AI coding assistants like 
                   Cursor, Claude, GPT-4, or Lovable. The percentage indicates how much of the codebase was 
@@ -553,10 +660,8 @@ export default function LeaderboardPage() {
                 </p>
               </div>
               <div>
-                <h2 className="text-lg font-bold text-[var(--foreground)] mb-3">
-                  Confidence Levels Explained
-                </h2>
-                <ul className="space-y-3 text-base" role="list">
+                <h2 className="text-lg font-bold text-[var(--foreground)] mb-3">Confidence Levels</h2>
+                <ul className="space-y-3 text-base">
                   <li className="flex items-start gap-3">
                     <ConfidenceBadge level="high" />
                     <span className="text-[var(--foreground-secondary)]">Open Startup dashboard, Stripe verified, or multiple independent sources</span>
@@ -577,23 +682,37 @@ export default function LeaderboardPage() {
       )}
 
       {/* Filters Bar */}
-      <div className="sticky top-[57px] z-10 bg-[var(--background-secondary)] border-b border-[var(--border)]" role="search">
+      <div className="sticky top-[57px] z-10 bg-[var(--background-secondary)] border-b border-[var(--border)]">
         <div className="max-w-7xl mx-auto px-4 lg:px-6 py-3">
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Mobile search */}
             <div className="relative md:hidden w-full mb-2">
-              <label htmlFor="search-mobile" className="sr-only">Search products or founders</label>
               <input
-                id="search-mobile"
                 type="search"
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3 py-2 pl-10 text-base bg-[var(--background-tertiary)] border border-[var(--border)] rounded-lg focus:outline-none focus:border-[var(--accent)] text-[var(--foreground)]"
+                className="w-full px-3 py-2 pl-10 text-base bg-[var(--background-tertiary)] border border-[var(--border)] rounded-lg text-[var(--foreground)]"
               />
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-tertiary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--foreground-tertiary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
+            </div>
+            
+            {/* Date Range Filter */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="date-filter" className="text-sm text-[var(--foreground-secondary)]">Claims:</label>
+              <select
+                id="date-filter"
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value as DateRange)}
+                className="px-3 py-2 text-sm bg-[var(--background-tertiary)] border border-[var(--border)] rounded-lg text-[var(--foreground)]"
+              >
+                <option value="all">All time</option>
+                <option value="30d">Last 30 days</option>
+                <option value="90d">Last 90 days</option>
+                <option value="1yr">Last year</option>
+              </select>
             </div>
             
             {/* Category Filter */}
@@ -603,7 +722,7 @@ export default function LeaderboardPage() {
                 id="category-filter"
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-3 py-2 text-sm bg-[var(--background-tertiary)] border border-[var(--border)] rounded-lg text-[var(--foreground)] focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)] focus:ring-opacity-20"
+                className="px-3 py-2 text-sm bg-[var(--background-tertiary)] border border-[var(--border)] rounded-lg text-[var(--foreground)]"
               >
                 <option value="all">All ({data.length})</option>
                 {categories.map((cat) => (
@@ -615,49 +734,42 @@ export default function LeaderboardPage() {
             </div>
             
             {/* Confidence Filter */}
-            <fieldset className="flex items-center gap-2">
-              <legend className="text-sm text-[var(--foreground-secondary)]">Confidence:</legend>
-              <div className="flex gap-1" role="radiogroup" aria-label="Filter by confidence level">
-                {[
-                  { value: "all", label: "All", icon: null },
-                  { value: "high", label: "High", icon: "✓" },
-                  { value: "medium", label: "Med", icon: "◐" },
-                  { value: "low", label: "Low", icon: "○" },
-                ].map((level) => (
-                  <button
-                    key={level.value}
-                    onClick={() => setConfidenceFilter(level.value)}
-                    role="radio"
-                    aria-checked={confidenceFilter === level.value}
-                    className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                      confidenceFilter === level.value
-                        ? level.value === "high"
-                          ? "bg-[var(--confidence-high-bg)] text-[var(--confidence-high)] border border-[var(--confidence-high)]"
-                          : level.value === "medium"
-                          ? "bg-[var(--confidence-medium-bg)] text-[var(--confidence-medium)] border border-[var(--confidence-medium)]"
-                          : level.value === "low"
-                          ? "bg-[var(--confidence-low-bg)] text-[var(--confidence-low)] border border-[var(--confidence-low)]"
-                          : "bg-[var(--accent)] text-white border border-[var(--accent)]"
-                        : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] border border-[var(--border)] hover:bg-[var(--border)]"
-                    }`}
-                  >
-                    {level.icon && <span aria-hidden="true">{level.icon} </span>}
-                    {level.label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <div className="flex items-center gap-1">
+              {[
+                { value: "all", label: "All", icon: null },
+                { value: "high", label: "✓", icon: null },
+                { value: "medium", label: "◐", icon: null },
+                { value: "low", label: "○", icon: null },
+              ].map((level) => (
+                <button
+                  key={level.value}
+                  onClick={() => setConfidenceFilter(level.value)}
+                  title={level.value === "all" ? "All confidence levels" : `${level.value} confidence`}
+                  className={`px-2 py-1.5 text-sm rounded-lg transition-colors ${
+                    confidenceFilter === level.value
+                      ? level.value === "high"
+                        ? "bg-[var(--confidence-high-bg)] text-[var(--confidence-high)] border border-[var(--confidence-high)]"
+                        : level.value === "medium"
+                        ? "bg-[var(--confidence-medium-bg)] text-[var(--confidence-medium)] border border-[var(--confidence-medium)]"
+                        : level.value === "low"
+                        ? "bg-[var(--confidence-low-bg)] text-[var(--confidence-low)] border border-[var(--confidence-low)]"
+                        : "bg-[var(--accent)] text-white border border-[var(--accent)]"
+                      : "bg-[var(--background-tertiary)] text-[var(--foreground-secondary)] border border-[var(--border)] hover:bg-[var(--border)]"
+                  }`}
+                >
+                  {level.label}
+                </button>
+              ))}
+            </div>
             
             {/* Stats */}
             <div className="flex items-center gap-4 ml-auto text-sm" aria-live="polite">
               <div className="flex items-center gap-1.5">
-                <span className="text-[var(--foreground-secondary)]">Total MRR:</span>
+                <span className="text-[var(--foreground-secondary)]">Total:</span>
                 <span className="font-mono font-bold text-[var(--confidence-high)]">{formatMRR(stats.totalMRR)}</span>
               </div>
               <div className="hidden sm:flex items-center gap-1.5">
-                <InfoTooltip tooltip="Average percentage of code generated by AI tools">
-                  <span className="text-[var(--foreground-secondary)]">Avg Vibecoded:</span>
-                </InfoTooltip>
+                <span className="text-[var(--foreground-secondary)]">Avg:</span>
                 <span className="font-mono font-bold text-[var(--accent)]">{stats.avgVibecoded}%</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -670,167 +782,141 @@ export default function LeaderboardPage() {
       </div>
 
       {/* Main Content */}
-      <main id="main-content" className="max-w-7xl mx-auto px-4 lg:px-6 py-6" role="main">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 lg:px-6 py-6">
         {loading ? (
-          <div className="space-y-2" aria-busy="true" aria-label="Loading leaderboard data">
+          <div className="space-y-2" aria-busy="true">
             {[...Array(10)].map((_, i) => (
               <div key={i} className="h-16 skeleton rounded-lg" />
             ))}
           </div>
+        ) : viewMode === "insights" ? (
+          <InsightsPanel data={filteredData} categoryStats={categoryStats} />
+        ) : viewMode === "analytics" ? (
+          <div className="space-y-6">
+            <h2 className="text-lg font-bold text-[var(--foreground)]">📊 Category Analytics</h2>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {categoryStats.map((stats) => (
+                <CategoryAnalyticsCard 
+                  key={stats.category} 
+                  stats={stats} 
+                  onClick={() => { setCategoryFilter(stats.category); setViewMode("table"); }}
+                />
+              ))}
+            </div>
+            
+            {/* Comparison Table */}
+            <div className="mt-8">
+              <h3 className="text-base font-bold text-[var(--foreground)] mb-4">Category Comparison</h3>
+              <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
+                <table className="w-full text-sm">
+                  <thead className="bg-[var(--background-tertiary)]">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-[var(--foreground-secondary)]">Category</th>
+                      <th className="px-4 py-3 text-right text-[var(--foreground-secondary)]">Products</th>
+                      <th className="px-4 py-3 text-right text-[var(--foreground-secondary)]">Total MRR</th>
+                      <th className="px-4 py-3 text-right text-[var(--foreground-secondary)]">Avg MRR</th>
+                      <th className="px-4 py-3 text-right text-[var(--foreground-secondary)]">Avg Vibecoded</th>
+                      <th className="px-4 py-3 text-right text-[var(--foreground-secondary)]">High Conf.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categoryStats.map((cat, i) => (
+                      <tr key={cat.category} className={i % 2 === 0 ? "bg-[var(--background-secondary)]" : ""}>
+                        <td className="px-4 py-3">
+                          <CategoryBadge category={cat.category} />
+                        </td>
+                        <td className="px-4 py-3 text-right text-[var(--foreground)]">{cat.count}</td>
+                        <td className="px-4 py-3 text-right font-mono text-[var(--confidence-high)]">{formatMRR(cat.totalMRR)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-[var(--foreground)]">{formatMRR(cat.avgMRR)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-[var(--accent)]">{cat.avgVibecoded}%</td>
+                        <td className="px-4 py-3 text-right text-[var(--confidence-high)]">{cat.highConfidenceCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         ) : filteredData.length === 0 ? (
-          <div className="text-center py-20" role="status">
-            <div className="text-6xl mb-4" aria-hidden="true">🔍</div>
+          <div className="text-center py-20">
+            <div className="text-6xl mb-4">🔍</div>
             <h2 className="text-xl font-medium text-[var(--foreground)] mb-2">No results found</h2>
-            <p className="text-base text-[var(--foreground-secondary)]">
-              Try adjusting your filters or search query.
-            </p>
+            <p className="text-base text-[var(--foreground-secondary)]">Try adjusting your filters or search query.</p>
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-[var(--border)]">
-            <table className="data-table" role="table" aria-label="Vibecoded products leaderboard">
+            <table className="data-table" aria-label="Vibecoded products leaderboard">
               <thead>
-                <tr role="row">
+                <tr>
                   <th scope="col" className="w-12">#</th>
-                  <th 
-                    scope="col"
-                    className="product-cell"
-                    onClick={() => handleSort("mrr")}
-                    onKeyDown={(e) => e.key === "Enter" && handleSort("mrr")}
-                    tabIndex={0}
-                    role="columnheader"
-                    aria-sort={sortKey === "mrr" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  >
+                  <th scope="col" className="product-cell" onClick={() => handleSort("mrr")} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && handleSort("mrr")}>
                     Product / Founder
                   </th>
                   <th scope="col" className="hide-mobile">Category</th>
-                  <th 
-                    scope="col"
-                    onClick={() => handleSort("mrr")} 
-                    onKeyDown={(e) => e.key === "Enter" && handleSort("mrr")}
-                    tabIndex={0}
-                    className={`text-right ${sortKey === "mrr" ? "sorted" : ""}`}
-                    role="columnheader"
-                    aria-sort={sortKey === "mrr" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  >
-                    MRR
-                    <SortIndicator active={sortKey === "mrr"} dir={sortDir} />
+                  <th scope="col" onClick={() => handleSort("mrr")} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && handleSort("mrr")} className={`text-right ${sortKey === "mrr" ? "sorted" : ""}`} aria-sort={sortKey === "mrr" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}>
+                    MRR <SortIndicator active={sortKey === "mrr"} dir={sortDir} />
                   </th>
-                  <th 
-                    scope="col"
-                    onClick={() => handleSort("vibecodedPercent")} 
-                    onKeyDown={(e) => e.key === "Enter" && handleSort("vibecodedPercent")}
-                    tabIndex={0}
-                    className={`text-right hide-mobile ${sortKey === "vibecodedPercent" ? "sorted" : ""}`}
-                    role="columnheader"
-                    aria-sort={sortKey === "vibecodedPercent" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  >
-                    <InfoTooltip tooltip="Percentage of code generated by AI">
-                      Vibecoded
-                    </InfoTooltip>
+                  <th scope="col" onClick={() => handleSort("vibecodedPercent")} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && handleSort("vibecodedPercent")} className={`text-right hide-mobile ${sortKey === "vibecodedPercent" ? "sorted" : ""}`}>
+                    <InfoTooltip tooltip="Percentage of code generated by AI">Vibecoded</InfoTooltip>
                     <SortIndicator active={sortKey === "vibecodedPercent"} dir={sortDir} />
                   </th>
-                  <th 
-                    scope="col"
-                    onClick={() => handleSort("confidence")}
-                    onKeyDown={(e) => e.key === "Enter" && handleSort("confidence")}
-                    tabIndex={0}
-                    className={sortKey === "confidence" ? "sorted" : ""}
-                    role="columnheader"
-                    aria-sort={sortKey === "confidence" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  >
-                    Confidence
-                    <SortIndicator active={sortKey === "confidence"} dir={sortDir} />
+                  <th scope="col" onClick={() => handleSort("confidence")} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && handleSort("confidence")} className={sortKey === "confidence" ? "sorted" : ""}>
+                    Confidence <SortIndicator active={sortKey === "confidence"} dir={sortDir} />
                   </th>
-                  <th 
-                    scope="col"
-                    onClick={() => handleSort("claimDate")}
-                    onKeyDown={(e) => e.key === "Enter" && handleSort("claimDate")}
-                    tabIndex={0}
-                    className={`hide-mobile ${sortKey === "claimDate" ? "sorted" : ""}`}
-                    role="columnheader"
-                    aria-sort={sortKey === "claimDate" ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
-                  >
-                    Claimed
-                    <SortIndicator active={sortKey === "claimDate"} dir={sortDir} />
+                  <th scope="col" onClick={() => handleSort("claimDate")} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && handleSort("claimDate")} className={`hide-mobile ${sortKey === "claimDate" ? "sorted" : ""}`}>
+                    Claimed <SortIndicator active={sortKey === "claimDate"} dir={sortDir} />
                   </th>
-                  <th scope="col" className="w-10">
-                    <span className="sr-only">Expand row</span>
-                  </th>
+                  <th scope="col" className="w-10"><span className="sr-only">Expand</span></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredData.map((entry, index) => {
                   const isExpanded = expandedRows.has(entry.founder.id);
                   const rank = index + 1;
+                  const isStale = !isAfter(new Date(entry.claim.claimDate), subDays(new Date(), 365));
                   
                   return (
                     <>
                       <tr
                         key={entry.founder.id}
-                        role="row"
-                        className={`cursor-pointer ${isExpanded ? "expanded" : ""}`}
+                        className={`cursor-pointer ${isExpanded ? "expanded" : ""} ${isStale ? "opacity-70" : ""}`}
                         onClick={() => toggleExpanded(entry.founder.id)}
                         onKeyDown={(e) => handleKeyDown(e, entry.founder.id)}
                         tabIndex={0}
                         aria-expanded={isExpanded}
-                        aria-label={`${entry.founder.productName} by ${entry.founder.name}, ${formatMRR(entry.claim.mrr)} MRR, ${entry.claim.confidence} confidence. Press Enter to ${isExpanded ? "collapse" : "expand"} details.`}
                       >
-                        <td className={`rank-cell ${rank === 1 ? "top-1" : rank === 2 ? "top-2" : rank === 3 ? "top-3" : ""}`} role="cell">
-                          {rank}
-                        </td>
-                        <td className="product-cell" role="cell">
+                        <td className={`rank-cell ${rank === 1 ? "top-1" : rank === 2 ? "top-2" : rank === 3 ? "top-3" : ""}`}>{rank}</td>
+                        <td className="product-cell">
                           <div className="flex items-center gap-3">
-                            <div 
-                              className="w-10 h-10 rounded-lg bg-[var(--background-tertiary)] border border-[var(--border)] flex items-center justify-center text-base font-semibold text-[var(--foreground-secondary)]"
-                              aria-hidden="true"
-                            >
+                            <div className="w-10 h-10 rounded-lg bg-[var(--background-tertiary)] border border-[var(--border)] flex items-center justify-center text-base font-semibold text-[var(--foreground-secondary)]">
                               {entry.founder.productName.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <div className="font-semibold text-[var(--foreground)]">
-                                {entry.founder.productName}
-                              </div>
+                              <div className="font-semibold text-[var(--foreground)]">{entry.founder.productName}</div>
                               <div className="text-sm text-[var(--foreground-secondary)]">
                                 {entry.founder.name}
-                                {entry.founder.twitterHandle && (
-                                  <span className="ml-1 text-[var(--accent)]">{entry.founder.twitterHandle}</span>
-                                )}
+                                {entry.founder.twitterHandle && <span className="ml-1 text-[var(--accent)]">{entry.founder.twitterHandle}</span>}
                               </div>
                             </div>
                           </div>
                         </td>
-                        <td className="hide-mobile" role="cell">
-                          <CategoryBadge category={entry.founder.category} />
-                        </td>
-                        <td className="mrr-cell" role="cell">
-                          {formatMRR(entry.claim.mrr)}
-                        </td>
-                        <td className="text-right hide-mobile" role="cell">
+                        <td className="hide-mobile"><CategoryBadge category={entry.founder.category} /></td>
+                        <td className="mrr-cell">{formatMRR(entry.claim.mrr)}</td>
+                        <td className="text-right hide-mobile">
                           {entry.founder.vibecodedPercent ? (
-                            <span className="font-mono font-semibold text-[var(--accent)]">
-                              {entry.founder.vibecodedPercent}%
-                            </span>
+                            <span className="font-mono font-semibold text-[var(--accent)]">{entry.founder.vibecodedPercent}%</span>
                           ) : (
                             <span className="text-[var(--foreground-tertiary)]">—</span>
                           )}
                         </td>
-                        <td role="cell">
-                          <ConfidenceBadge level={entry.claim.confidence} />
-                        </td>
-                        <td className="text-sm text-[var(--foreground-secondary)] hide-mobile" role="cell">
+                        <td><ConfidenceBadge level={entry.claim.confidence} /></td>
+                        <td className="text-sm text-[var(--foreground-secondary)] hide-mobile">
                           {formatDistanceToNow(new Date(entry.claim.claimDate), { addSuffix: true })}
+                          {isStale && <span className="ml-1 text-[var(--confidence-low)]" title="Over 1 year old">⚠</span>}
                         </td>
-                        <td role="cell">
-                          <button
-                            className={`expand-btn ${isExpanded ? "expanded" : ""}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleExpanded(entry.founder.id);
-                            }}
-                            aria-label={isExpanded ? "Collapse details" : "Expand details"}
-                            aria-expanded={isExpanded}
-                          >
-                            <span aria-hidden="true">▶</span>
+                        <td>
+                          <button className={`expand-btn ${isExpanded ? "expanded" : ""}`} onClick={(e) => { e.stopPropagation(); toggleExpanded(entry.founder.id); }} aria-label={isExpanded ? "Collapse" : "Expand"}>
+                            ▶
                           </button>
                         </td>
                       </tr>
@@ -843,34 +929,24 @@ export default function LeaderboardPage() {
           </div>
         )}
         
-        {/* Data Disclaimer */}
-        <aside className="mt-8 p-5 rounded-lg bg-[var(--background-secondary)] border border-[var(--border)]" aria-label="Data disclaimer">
+        {/* Disclaimer */}
+        <aside className="mt-8 p-5 rounded-lg bg-[var(--background-secondary)] border border-[var(--border)]">
           <div className="flex items-start gap-3">
-            <span className="text-xl" aria-hidden="true">⚠️</span>
+            <span className="text-xl">⚠️</span>
             <div className="text-sm text-[var(--foreground-secondary)] space-y-2">
-              <p>
-                <strong className="text-[var(--foreground)]">Data disclaimer:</strong> Revenue figures are self-reported 
-                from founder tweets, interviews, and public dashboards. None are independently audited.
-              </p>
-              <p>
-                <strong className="text-[var(--foreground)]">Confidence levels:</strong> 
-                <span className="text-[var(--confidence-high)]"> ✓ High</span> = Open Startup or Stripe verified. 
-                <span className="text-[var(--confidence-medium)]"> ◐ Medium</span> = Interviews or multiple sources. 
-                <span className="text-[var(--confidence-low)]"> ○ Low</span> = Single unverified claim.
-              </p>
+              <p><strong className="text-[var(--foreground)]">Data disclaimer:</strong> Revenue figures are self-reported from founder tweets, interviews, and public dashboards. None are independently audited.</p>
+              <p><strong className="text-[var(--foreground)]">Stale data:</strong> Claims older than 1 year are marked with ⚠ and may not reflect current revenue.</p>
             </div>
           </div>
         </aside>
       </main>
       
       {/* Footer */}
-      <footer className="border-t border-[var(--border)] py-6 mt-8" role="contentinfo">
+      <footer className="border-t border-[var(--border)] py-6 mt-8">
         <div className="max-w-7xl mx-auto px-4 lg:px-6 text-center">
           <p className="text-sm text-[var(--foreground-tertiary)]">
             Data last updated: {new Date().toLocaleDateString()} • 
-            <Link href="/" className="text-[var(--accent)] hover:underline ml-1">
-              View AI Changelog
-            </Link>
+            <Link href="/" className="text-[var(--accent)] hover:underline ml-1">View AI Changelog</Link>
           </p>
         </div>
       </footer>
