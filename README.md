@@ -1,161 +1,102 @@
-# 🚀 AI Opportunities Hub
+# AI Opportunities Hub
 
-**Turn AI model updates into actionable business opportunities.**
+**Turn AI model updates into scored business opportunities for indie hackers.**
 
-A decision-making tool for indie hackers and builders to discover what they can build today that wasn't possible yesterday.
+Stop missing the wave. Every AI capability release creates new business opportunities that didn't exist yesterday. This tool automatically converts AI updates from major providers into actionable, scored business ideas with MVP specs and market analysis. It's like having a research team that spots what you can build today that wasn't possible last week.
 
 🔗 **Live Site:** [ai-changelog-two.vercel.app](https://ai-changelog-two.vercel.app)
 
----
-
 ## What This Does
 
-| Feature | Description |
-|---------|-------------|
-| **📰 AI Changelog** | Aggregated updates from OpenAI, Anthropic, Google, xAI, Perplexity |
-| **🔓 Capability Unlocks** | Highlights updates that enable NEW things (not just improvements) |
-| **🎯 Opportunity Pages** | Structured business ideas with scores, MVP specs, and risks |
-| **🏆 Vibecoded Leaderboard** | Real products built with AI tools + their MRR |
-| **💾 Saved Collections** | Build research shortlists with notes |
-| **🎨 Personalization** | Filter by your skills and preferred capabilities |
+- **📰 Aggregates AI Updates** — Real-time feed from OpenAI, Anthropic, Google, xAI, Perplexity
+- **🔓 Identifies Capability Unlocks** — Filters for updates that enable NEW things (not just improvements)
+- **🎯 Generates Business Opportunities** — AI-powered analysis creates scored business ideas with:
+  - Indie Viability Score (1-5): Can a solo dev build this?
+  - Time to Revenue Score (1-5): How fast to first $?
+  - Market Opportunity Score (1-5): Competition level
+  - 10-point MVP specifications
+  - Risk analysis and distribution strategies
+- **🏆 Vibecoded Leaderboard** — Real products built with AI tools + verified MRR
+- **💾 Research Collections** — Save and organize opportunities you want to explore
 
----
+## Key Features
 
-## Key Pages
-
-### `/` — AI Changelog Feed
-- Browse AI updates filtered by provider and capability
-- Capability filters: 🎤 Voice, 👁️ Vision, 🔧 Tool Use, 🔍 Search, 🤖 Agents, 🧠 Reasoning
+### AI Changelog Feed (`/`)
+Browse updates filtered by capability type:
+- 🎤 Voice • 👁️ Vision • 🔧 Tool Use • 🔍 Search • 🤖 Agents • 🧠 Reasoning
+- Personalization panel for your skills and interests
 - Quick insights dashboard showing trending capabilities
-- Personalization panel to set your skills/preferences
 
-### `/updates/[id]` — Opportunity Detail
-- Full capability unlock explanation
-- Ranked business opportunities with:
-  - **Indie Viability Score** (1-5): Can a solo dev build this?
-  - **Time to Revenue Score** (1-5): How fast to first $?
-  - **Opportunity Score** (1-5): Market competition level
-  - Target user + Job to be done
-  - 10-bullet MVP spec
-  - Risks and watch-outs
-  - Distribution wedges
-- Related products from leaderboard (proof it works)
-- Market gaps (underserved verticals)
+### Opportunity Analysis (`/updates/[id]`)
+Each capability unlock gets a full business analysis:
+- Multiple ranked business opportunities
+- Target users and jobs-to-be-done
+- Technical implementation roadmap
+- Market gaps and underserved verticals
+- Related products from the leaderboard (social proof)
 
-### `/leaderboard` — Vibecoded MRR Leaderboard
-- Products built mostly/entirely with AI tools
-- Self-reported MRR with confidence levels
-- Source links for verification
-- "Verified Only" toggle
-- Sortable by MRR, confidence, date
-- Expandable rows with full details
-
-### `/saved` — Research Collections
-- Save updates, opportunities, or products
-- Organize into named collections
-- Add notes to items
-- Export to CSV
-- Share via URL
-
----
+### MRR Leaderboard (`/leaderboard`)
+Track real AI-built products with self-reported revenue:
+- Confidence levels and verification status
+- Source links for transparency
+- Sortable by MRR, date, confidence
+- Filter for verified-only entries
 
 ## Tech Stack
 
-- **Framework:** Next.js 16 (App Router)
-- **Database:** SQLite via libsql (Turso-compatible)
-- **ORM:** Drizzle
+- **Framework:** Next.js 16 with React 19
+- **Database:** SQLite with Drizzle ORM
+- **AI:** OpenAI GPT for opportunity analysis
+- **Scraping:** RSS parsing + web scraping for updates
 - **Styling:** Tailwind CSS
-- **Deployment:** Vercel
 
----
+## Getting Started
 
-## Local Development
-
+1. **Clone and install:**
 ```bash
-# Install dependencies
+git clone https://github.com/yourusername/ai-changelog
+cd ai-changelog
 npm install
+```
 
-# Run development server
+2. **Set up environment:**
+```bash
+cp .env.example .env.local
+# Add your OpenAI API key and database URL
+```
+
+3. **Initialize database:**
+```bash
+npm run db:generate
+npm run db:migrate
+```
+
+4. **Run development server:**
+```bash
 npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Visit `http://localhost:3000` to see the changelog feed.
 
----
+## How It Works
 
-## Project Structure
+1. **Scraping:** Cron jobs pull updates from AI provider RSS feeds and blogs
+2. **Classification:** AI classifier identifies capability unlocks vs. incremental improvements
+3. **Analysis:** GPT generates business opportunities with structured scoring
+4. **Curation:** Manual verification for high-impact opportunities
+5. **Tracking:** Community-submitted products show what's actually being built
 
-```
-src/
-├── app/
-│   ├── page.tsx                    # Main changelog
-│   ├── leaderboard/page.tsx        # MRR leaderboard
-│   ├── saved/page.tsx              # Saved collections
-│   ├── updates/[slug]/page.tsx     # Opportunity detail
-│   └── api/                        # API routes
-├── components/
-│   ├── ChangelogFeed.tsx           # Main feed + filters
-│   ├── UpdateCard.tsx              # Update card component
-│   ├── UserPreferences.tsx         # Personalization panel
-│   └── SearchBar.tsx               # Search input
-├── db/
-│   ├── schema.ts                   # Database schema
-│   └── index.ts                    # DB initialization
-└── lib/
-    ├── seed.ts                     # Demo data seeding
-    ├── seed-leaderboard.ts         # Leaderboard data
-    └── seed-opportunities.ts       # Opportunity data
-```
+## What This Isn't
 
----
-
-## Database Schema
-
-### Core Tables
-- `updates` — AI provider announcements
-- `opportunities` — Structured business ideas linked to updates
-- `founders` — Products/founders for leaderboard
-- `mrrClaims` — Revenue claims with confidence
-- `claimSources` — Verification sources
-
-### User Data (localStorage)
-- `savedItems` — Bookmarked items with notes
-- `collections` — Named groupings
-- `userPreferences` — Skills, capabilities, verticals
-
----
-
-## Roadmap / Next Steps
-
-### High Priority
-- [ ] Cross-link updates ↔ leaderboard products
-- [ ] Full-text search with highlighting
-- [ ] Shareable collection URLs
-
-### Medium Priority
-- [ ] Filter by viability scores
-- [ ] Apply personalization to filtering
-- [ ] Expanded insights dashboard
-
-### Lower Priority
-- [ ] Enrich old saved items
-- [ ] Mobile optimization
-- [ ] Real-time data freshness indicators
-
----
+This is an early-stage tool for builders who want to stay ahead of AI capabilities. It's not a comprehensive business research platform or a guarantee of success. The opportunity scores are AI-generated and should be validated with real market research.
 
 ## Contributing
 
-This is an experimental project. Feel free to fork and adapt for your own use cases.
-
----
+The most valuable contributions are:
+- Submitting your AI-built products to the leaderboard
+- Reporting missed capability unlocks
+- Improving the opportunity scoring algorithm
 
 ## License
 
-MIT
+MIT License - see LICENSE file for details.
