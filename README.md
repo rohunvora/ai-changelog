@@ -1,3 +1,11 @@
+<div align="center">
+  <img src="/.github/social-preview.png" alt="ai-changelog" width="800" />
+  <p><strong>Turns AI model updates into scored business opportunities for indie hackers.</strong></p>
+  <p>
+    <a href="https://ai-changelog-two.vercel.app"><strong>🚀 Live Demo</strong></a>
+  </p>
+</div>
+
 # AI Opportunities Hub
 
 **Turn AI model updates into scored business opportunities for indie hackers.**
