@@ -88,6 +88,34 @@ Visit `http://localhost:3000` to see the changelog feed.
 
 ## How It Works
 
+```mermaid
+flowchart LR
+    subgraph Ingest["📥 Ingest"]
+        RSS[RSS Feeds]
+        Scrape[Web Scraper]
+    end
+    
+    subgraph Process["🧠 Process"]
+        Classify["Classify\n(unlock vs improvement)"]
+        Score["Score\n(indie viability)"]
+    end
+    
+    subgraph Output["📤 Output"]
+        Opp[Opportunities]
+        LB[Leaderboard]
+    end
+    
+    RSS --> Classify
+    Scrape --> Classify
+    Classify -->|"capability unlock"| Score
+    Score --> Opp
+    Opp -.->|"social proof"| LB
+    
+    style Ingest fill:#1e1b4b,stroke:#818cf8,color:#fff
+    style Process fill:#1e1b4b,stroke:#a78bfa,color:#fff  
+    style Output fill:#1e1b4b,stroke:#c4b5fd,color:#fff
+```
+
 1. **Scraping:** Cron jobs pull updates from AI provider RSS feeds and blogs
 2. **Classification:** AI classifier identifies capability unlocks vs. incremental improvements
 3. **Analysis:** GPT generates business opportunities with structured scoring
